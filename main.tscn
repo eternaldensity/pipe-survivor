@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://c6dhvx76e744f" path="res://main.gd" id="1_h2yge"]
 [ext_resource type="Script" uid="uid://d0an2vrlo17md" path="res://vehicle.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://dtxatg4s7jpdp" path="res://pipe_network.gd" id="2_0xm2m"]
-[ext_resource type="PackedScene" uid="uid://bx086p6j0al25" path="res://PipeSection.tscn" id="2_1bvp3"]
+[ext_resource type="PackedScene" uid="uid://bx086p6j0al25" path="res://StraightPipeSection.tscn" id="2_1bvp3"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_0xm2m"]
 size = Vector3(1.2, 0.5, 2)
