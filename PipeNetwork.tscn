@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://f7xrenepvd1u"]
+
+[ext_resource type="Script" uid="uid://dtxatg4s7jpdp" path="res://pipe_network.gd" id="1_vnd46"]
+
+[node name="PipeNetwork" type="Node3D" unique_id=1084017158]
+script = ExtResource("1_vnd46")

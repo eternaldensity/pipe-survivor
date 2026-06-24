@@ -9,11 +9,19 @@ const TURN_SPEED   := 2.0   # radians per second
 var tube_origin := Vector3.ZERO
 var tube_axis   := Vector3(0.0, 0.0, 1.0)
 
+@export var network : PipeNetwork
+
 
 func _get_outward() -> Vector3:
+	var section := network.get_section_at(global_position)
+	if section == null:
+		return Vector3.UP  # fallback
+	var props  := section.get_tube_properties(global_position)
+	tube_axis   = props["axis"]
+	tube_origin = props["origin"]
+	
 	var to_self := global_position - tube_origin
-	var along   := to_self.dot(tube_axis) * tube_axis
-	var radial  := to_self - along
+	var radial  := to_self - to_self.dot(tube_axis) * tube_axis
 	if radial.length_squared() < 1e-4:
 		return tube_axis.cross(Vector3.UP).normalized()
 	return radial.normalized()
