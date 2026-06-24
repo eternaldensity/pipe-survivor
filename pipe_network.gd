@@ -5,8 +5,12 @@ extends Node3D
 var sections : Array[PipeSection] = []
 
 
-func add_section(packed : PackedScene) -> PipeSection:
+func add_section(packed: PackedScene, props: Dictionary = {}) -> PipeSection:
 	var section := packed.instantiate() as PipeSection
+	
+	# Apply overrides before _ready runs positioning
+	for key in props:
+		section.set(key, props[key])
 	add_child(section)
 
 	if sections.is_empty():

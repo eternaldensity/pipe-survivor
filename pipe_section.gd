@@ -11,6 +11,10 @@ extends Node3D
 @onready var mesh_instance : MeshInstance3D = $MeshInstance3D
 
 func _ready() -> void:
+	# Position markers to match actual length
+	entry.position = Vector3(0.0, 0.0, -length / 2.0)
+	exit.position  = Vector3(0.0, 0.0,  length / 2.0)
+	
 	var m := CylinderMesh.new()
 	m.top_radius    = exit_radius
 	m.bottom_radius = entry_radius
