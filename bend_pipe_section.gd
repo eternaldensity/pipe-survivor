@@ -20,9 +20,9 @@ func _ready() -> void:
 	
 	assert(_bend_radius > tube_radius,
 		"tube_length too short for bend_angle — tube would self-intersect")
-	print("entry tangent: ", Vector3(sin(0.0), 0.0, cos(0.0)))
-	print("exit tangent: ", Vector3(sin(_angle_rad), 0.0, cos(_angle_rad)))
-	print("bend basis: ", global_transform.basis)
+	#print("entry tangent: ", Vector3(sin(0.0), 0.0, cos(0.0)))
+	#print("exit tangent: ", Vector3(sin(_angle_rad), 0.0, cos(_angle_rad)))
+	#print("bend basis: ", global_transform.basis)
 	
 	_build_mesh()
 	_place_markers()
@@ -198,10 +198,6 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 		0.0,
 		_bend_radius * sin(angle)
 	)
-	var tangent_local := Vector3(sin(angle), 0.0, cos(angle)).normalized()
-	
-	# Re-apply roll to get back to section local space, then to world
-	var arc_point := roll_basis * arc_point_local
 	
 	var epsilon    := 0.01
 	var angle1  :float= clamp(angle - epsilon, 0.0, _angle_rad)

@@ -3,7 +3,6 @@ class_name PipeNetwork
 extends Node3D
 
 var sections : Array[PipeSection] = []
-const BLEND_DISTANCE := 5.0
 var current_section : PipeSection = null
 
 func add_section(packed: PackedScene, props: Dictionary = {}) -> PipeSection:
@@ -31,27 +30,6 @@ func add_section(packed: PackedScene, props: Dictionary = {}) -> PipeSection:
 
 	sections.append(section)
 	return section
-
-
-func get_tube_properties_at(world_pos: Vector3) -> Dictionary:
-	var section := get_section_at(world_pos)
-	if section == null:
-		return {"axis": Vector3.FORWARD, "origin": world_pos, "radius": 10.0}
-	
-	var props := section.get_tube_properties(world_pos)
-	
-	# Check if we're near the exit and blend with next section
-	var next_idx := sections.find(section) + 1
-	if next_idx < sections.size():
-		var dist_to_exit := world_pos.distance_to(section.exit.global_position)
-		if dist_to_exit < BLEND_DISTANCE:
-			var next       := sections[next_idx]
-			var next_props := next.get_tube_properties(world_pos)
-			var t          := 1.0 - (dist_to_exit / BLEND_DISTANCE)
-			props["axis"]   = props["axis"].lerp(next_props["axis"], t).normalized()
-			props["origin"] = props["origin"].lerp(next_props["origin"], t)
-	
-	return props
 
 
 func get_section_at(world_pos: Vector3) -> PipeSection:
