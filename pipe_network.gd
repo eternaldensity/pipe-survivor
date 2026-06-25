@@ -29,9 +29,19 @@ func add_section(packed: PackedScene, props: Dictionary = {}) -> PipeSection:
 	return section
 
 
+# In PipeNetwork
+var current_section : PipeSection = null
+
 func get_section_at(world_pos: Vector3) -> PipeSection:
-	## Returns the section whose AABB (approximated by entry-exit span) 
-	## the position is closest to. Simple for now; refine later.
+	# Stick with current section until we're clearly outside it
+	if current_section != null and current_section.contains_point(world_pos):
+		return current_section
+	# Then look for a new one
+	for s in sections:
+		if s.contains_point(world_pos):
+			current_section = s
+			return s
+	# Fall back to nearest midpoint
 	var best      : PipeSection = null
 	var best_dist := INF
 	for s in sections:
@@ -40,4 +50,5 @@ func get_section_at(world_pos: Vector3) -> PipeSection:
 		if dist < best_dist:
 			best_dist = dist
 			best      = s
+	current_section = best
 	return best

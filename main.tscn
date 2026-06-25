@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://d0an2vrlo17md" path="res://vehicle.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://dtxatg4s7jpdp" path="res://pipe_network.gd" id="2_0xm2m"]
 [ext_resource type="PackedScene" uid="uid://bx086p6j0al25" path="res://StraightPipeSection.tscn" id="2_1bvp3"]
+[ext_resource type="PackedScene" uid="uid://35f21vfxi5ur" path="res://BendPipeSection.tscn" id="3_lquwl"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_0xm2m"]
 size = Vector3(1.2, 0.5, 2)
@@ -14,6 +15,7 @@ size = Vector3(1.2, 0.5, 2)
 [node name="Main" type="Node3D" unique_id=622573277]
 script = ExtResource("1_h2yge")
 straight_section = ExtResource("2_1bvp3")
+bend_section = ExtResource("3_lquwl")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=2140795831]
 
@@ -21,7 +23,7 @@ straight_section = ExtResource("2_1bvp3")
 transform = Transform3D(0.95146346, 0, -0.30776176, 0, 1, 0, 0.30776176, 0, 0.95146346, 2.3548903, -1.2760048, 6.3048677)
 
 [node name="Vehicle" type="CharacterBody3D" parent="." unique_id=2007903113 node_paths=PackedStringArray("network")]
-transform = Transform3D(-4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0, 1, 9.25, 0, -40)
+transform = Transform3D(4.371139e-08, 1, -8.742278e-08, 1, -4.371139e-08, 0, -3.821371e-15, -8.742278e-08, -1, 9.25, 0, -40)
 script = ExtResource("1_ig7tw")
 network = NodePath("../PipeNetwork")
 

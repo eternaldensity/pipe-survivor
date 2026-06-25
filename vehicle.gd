@@ -28,6 +28,8 @@ func _get_outward() -> Vector3:
 
 
 func _physics_process(delta: float) -> void:
+	var section := network.get_section_at(global_position)
+	print(section.name)
 	var outward := _get_outward()
 	var inward  := -outward
 	up_direction = inward

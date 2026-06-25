@@ -45,3 +45,11 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 		"origin": origin,
 		"radius": r      # vehicle can use this later for e.g. FOV scaling
 	}
+
+func contains_point(world_pos: Vector3) -> bool:
+	var local_pos := to_local(world_pos)
+	var half      := length / 2.0
+	if abs(local_pos.z) > half + 2.0:
+		return false
+	var radial := Vector2(local_pos.x, local_pos.y).length()
+	return radial < max(entry_radius, exit_radius) + 2.0

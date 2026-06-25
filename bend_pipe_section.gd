@@ -1,3 +1,4 @@
+@tool
 class_name BendPipeSection
 extends PipeSection
 
@@ -20,13 +21,16 @@ func _ready() -> void:
 		"tube_length too short for bend_angle — tube would self-intersect")
 	
 	_build_mesh()
-	_build_collision()
 	_place_markers()
+	if Engine.is_editor_hint():
+		notify_property_list_changed()
+		return
+	_build_collision()
 
 
 func _place_markers() -> void:
 	entry.position = Vector3.ZERO
-	entry.rotation = Vector3.ZERO
+	entry.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)  # tilt Z to point into tube
 	
 	# Arc centre is at +X from the entry point
 	# Exit position is where the arc ends
@@ -40,6 +44,9 @@ func _place_markers() -> void:
 
 
 func _build_mesh() -> void:
+	# Clear previous mesh
+	mesh_instance.mesh = null
+	
 	var arc_steps  :int= max(16, int(bend_angle / 5.0))  # one step per 5 degrees minimum
 	var ring_steps := 24
 	
@@ -68,17 +75,16 @@ func _build_mesh() -> void:
 		# Outward radial from arc centre to ring centre — 
 		# this is the "away from bend centre" direction
 		var radial  := (ring_centre - arc_centre).normalized()
-		
-		# Up is just Y — the tube doesn't roll around the bend
-		var up      := Vector3.UP
-		
+				
 		for j in range(ring_steps + 1):
 			var v       := float(j) / float(ring_steps)
 			var ring_a  := v * TAU
 			
 			# Point on the cross-section ring, expressed in the
 			# local frame of (radial, up, tangent)
-			var offset  := (radial * cos(ring_a) + up * sin(ring_a)) * tube_radius
+			# cross-section in the plane perpendicular to the tangent
+			var up     := tangent.cross(radial).normalized()
+			var offset := (radial * cos(ring_a) + up * sin(ring_a)) * tube_radius
 			var pos     := ring_centre + offset
 			
 			# Normal points inward (toward tube centre) for inside surface
@@ -112,6 +118,10 @@ func _build_mesh() -> void:
 
 
 func _build_collision() -> void:
+	# Remove any previously generated collision children
+	for child in mesh_instance.get_children():
+		child.queue_free()
+		
 	mesh_instance.create_trimesh_collision()
 	await get_tree().process_frame
 	# create_trimesh_collision makes a StaticBody3D sibling of mesh_instance
@@ -146,3 +156,19 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 		"origin": to_global(arc_point),
 		"radius": tube_radius
 	}
+
+func contains_point(world_pos: Vector3) -> bool:
+	var local_pos  := to_local(world_pos)
+	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
+	var to_vehicle := local_pos - arc_centre
+	to_vehicle.y   = 0.0
+	var angle      := atan2(to_vehicle.z, -to_vehicle.x)
+	if angle < -0.1 or angle > _angle_rad + 0.1:
+		return false
+	var arc_point  := arc_centre + Vector3(
+		-cos(angle) * _bend_radius,
+		0.0,
+		 sin(angle) * _bend_radius
+	)
+	var dist := local_pos.distance_to(arc_point)
+	return dist < tube_radius + 2.0
