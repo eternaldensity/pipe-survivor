@@ -19,6 +19,9 @@ func _ready() -> void:
 	
 	assert(_bend_radius > tube_radius,
 		"tube_length too short for bend_angle — tube would self-intersect")
+	print("entry tangent: ", Vector3(sin(0.0), 0.0, cos(0.0)))
+	print("exit tangent: ", Vector3(sin(_angle_rad), 0.0, cos(_angle_rad)))
+	print("bend basis: ", global_transform.basis)
 	
 	_build_mesh()
 	_place_markers()
@@ -29,8 +32,7 @@ func _ready() -> void:
 
 
 func _place_markers() -> void:
-	entry.position = Vector3.ZERO
-	entry.rotation = Vector3(deg_to_rad(90.0), 0.0, 0.0)  # tilt Z to point into tube
+	entry.transform = Transform3D.IDENTITY
 	
 	# Arc centre is at +X from the entry point
 	# Exit position is where the arc ends
@@ -55,26 +57,21 @@ func _build_mesh() -> void:
 	var uvs      := PackedVector2Array()
 	var indices  := PackedInt32Array()
 	
-	# Arc centre sits at (bend_radius, 0, 0) in local space
-	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
 	
 	for i in range(arc_steps + 1):
 		var u     := float(i) / float(arc_steps)
 		var arc_a := u * _angle_rad   # angle along the arc
 		
 		# Centre of the cross-section ring at this arc position
-		var ring_centre := arc_centre + Vector3(
-			-cos(arc_a) * _bend_radius,
+		var ring_centre := Vector3(
+			_bend_radius * (1.0 - cos(arc_a)),
 			0.0,
-			 sin(arc_a) * _bend_radius
+			_bend_radius * sin(arc_a)
 		)
-		
-		# Tangent along the arc at this point
+
 		var tangent := Vector3(sin(arc_a), 0.0, cos(arc_a)).normalized()
-		
-		# Outward radial from arc centre to ring centre — 
-		# this is the "away from bend centre" direction
-		var radial  := (ring_centre - arc_centre).normalized()
+
+		var radial := (ring_centre - Vector3(_bend_radius, 0.0, 0.0)).normalized()
 				
 		for j in range(ring_steps + 1):
 			var v       := float(j) / float(ring_steps)
@@ -83,9 +80,9 @@ func _build_mesh() -> void:
 			# Point on the cross-section ring, expressed in the
 			# local frame of (radial, up, tangent)
 			# cross-section in the plane perpendicular to the tangent
-			var up     := tangent.cross(radial).normalized()
+			var up := Vector3.UP  # just use global Y, it's constant for a horizontal bend
 			var offset := (radial * cos(ring_a) + up * sin(ring_a)) * tube_radius
-			var pos     := ring_centre + offset
+			var pos    := ring_centre + offset
 			
 			# Normal points inward (toward tube centre) for inside surface
 			var normal  := -offset.normalized()
@@ -135,21 +132,31 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var local_pos  := to_local(world_pos)
 	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
 	
-	# Project onto arc plane and find angle
+	# Vector from arc centre to vehicle, flattened to XZ plane
+	# (Y is the up axis of the tube cross-section, not the arc plane)
 	var to_vehicle := local_pos - arc_centre
 	to_vehicle.y   = 0.0
-	var angle      := atan2(to_vehicle.z, -to_vehicle.x)
-	angle          = clamp(angle, 0.0, _angle_rad)
+	
+	# At entry (Z=0 end), to_vehicle points in -X direction
+	# At exit (end of arc), to_vehicle points in -Z direction for 90 deg bend
+	# atan2(z, x) gives angle from +X axis
+	# We want angle from -X axis (entry) sweeping toward -Z (exit)
+	var angle := atan2(to_vehicle.z, -to_vehicle.x)
+	angle      = clamp(angle, 0.0, _angle_rad)
 	
 	# Nearest point on arc centreline
-	var arc_point  := arc_centre + Vector3(
+	var arc_point := arc_centre + Vector3(
 		-cos(angle) * _bend_radius,
 		0.0,
 		 sin(angle) * _bend_radius
 	)
 	
-	# Tangent at that point
-	var tangent    := Vector3(sin(angle), 0.0, cos(angle)).normalized()
+	# Tangent: derivative of arc_point with respect to angle
+	# d/dangle (-cos(angle), 0, sin(angle)) = (sin(angle), 0, cos(angle))
+	var tangent := Vector3(sin(angle), 0.0, cos(angle)).normalized()
+	
+	# Verify: at angle=0 tangent should be (0,0,1) matching straight pipe exit
+	# At angle=PI/2 tangent should be (1,0,0)
 	
 	return {
 		"axis":   global_transform.basis * tangent,

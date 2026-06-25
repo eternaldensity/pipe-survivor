@@ -29,7 +29,8 @@ func _get_outward() -> Vector3:
 
 func _physics_process(delta: float) -> void:
 	var section := network.get_section_at(global_position)
-	print(section.name)
+	var props   := section.get_tube_properties(global_position)
+	print("section: ", section.name, "  axis: ", props["axis"].snapped(Vector3(0.01, 0.01, 0.01)))
 	var outward := _get_outward()
 	var inward  := -outward
 	up_direction = inward

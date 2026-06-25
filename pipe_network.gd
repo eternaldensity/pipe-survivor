@@ -24,6 +24,9 @@ func add_section(packed: PackedScene, props: Dictionary = {}) -> PipeSection:
 		var exit_T     := prev.exit.global_transform
 		var entry_local := section.entry.transform   # local to the section
 		section.global_transform = exit_T * entry_local.affine_inverse()
+		print("exit_T: ", exit_T)
+		print("entry_local: ", entry_local)
+		print("result: ", exit_T * entry_local.affine_inverse())
 
 	sections.append(section)
 	return section
