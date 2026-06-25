@@ -57,21 +57,26 @@ func _build_mesh() -> void:
 	var uvs      := PackedVector2Array()
 	var indices  := PackedInt32Array()
 	
+	# Arc centre sits at (bend_radius, 0, 0) in local space
+	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
 	
 	for i in range(arc_steps + 1):
 		var u     := float(i) / float(arc_steps)
 		var arc_a := u * _angle_rad   # angle along the arc
 		
 		# Centre of the cross-section ring at this arc position
-		var ring_centre := Vector3(
-			_bend_radius * (1.0 - cos(arc_a)),
+		var ring_centre := arc_centre + Vector3(
+			-cos(arc_a) * _bend_radius,
 			0.0,
-			_bend_radius * sin(arc_a)
+			 sin(arc_a) * _bend_radius
 		)
-
+		
+		# Tangent along the arc at this point
 		var tangent := Vector3(sin(arc_a), 0.0, cos(arc_a)).normalized()
-
-		var radial := (ring_centre - Vector3(_bend_radius, 0.0, 0.0)).normalized()
+		
+		# Outward radial from arc centre to ring centre — 
+		# this is the "away from bend centre" direction
+		var radial  := (ring_centre - arc_centre).normalized()
 				
 		for j in range(ring_steps + 1):
 			var v       := float(j) / float(ring_steps)
@@ -80,9 +85,9 @@ func _build_mesh() -> void:
 			# Point on the cross-section ring, expressed in the
 			# local frame of (radial, up, tangent)
 			# cross-section in the plane perpendicular to the tangent
-			var up := Vector3.UP  # just use global Y, it's constant for a horizontal bend
+			var up     := tangent.cross(radial).normalized()
 			var offset := (radial * cos(ring_a) + up * sin(ring_a)) * tube_radius
-			var pos    := ring_centre + offset
+			var pos     := ring_centre + offset
 			
 			# Normal points inward (toward tube centre) for inside surface
 			var normal  := -offset.normalized()
