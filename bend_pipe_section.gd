@@ -42,7 +42,7 @@ func _place_markers() -> void:
 		_bend_radius * sin(_angle_rad)
 	)
 	# Exit faces the tangent direction at the end of the arc
-	exit.rotation = Vector3(0.0, -_angle_rad, 0.0)
+	exit.rotation = Vector3(0.0, _angle_rad, 0.0)
 
 
 func _build_mesh() -> void:
@@ -50,7 +50,7 @@ func _build_mesh() -> void:
 	mesh_instance.mesh = null
 	
 	var arc_steps  :int= max(16, int(bend_angle / 5.0))  # one step per 5 degrees minimum
-	var ring_steps := 24
+	var ring_steps := PipeSection.RING_SEGMENTS
 	
 	var verts    := PackedVector3Array()
 	var normals  := PackedVector3Array()

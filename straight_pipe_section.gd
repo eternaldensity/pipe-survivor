@@ -16,6 +16,7 @@ func _ready() -> void:
 	m.top_radius    = exit_radius
 	m.bottom_radius = entry_radius
 	m.height        = length
+	m.radial_segments = PipeSection.RING_SEGMENTS
 	m.cap_top       = false
 	m.cap_bottom    = false
 	mesh_instance.mesh = m	
