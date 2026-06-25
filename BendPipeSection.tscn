@@ -21,6 +21,7 @@ _surfaces = [{
 
 [node name="BendPipeSection" type="Node3D" unique_id=929888400]
 script = ExtResource("1_xbm3m")
+roll_angle = null
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=726493041]
 material_override = SubResource("StandardMaterial3D_ctsbk")

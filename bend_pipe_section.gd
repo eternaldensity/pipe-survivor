@@ -3,8 +3,9 @@ class_name BendPipeSection
 extends PipeSection
 
 @export var tube_radius : float = 10.0
-@export var tube_length : float = 100.0
+@export var length : float = 100.0
 @export var bend_angle  : float = 90.0
+@export var roll_angle : float = 0.0  # degrees, rotation around entry Z axis
 
 @onready var mesh_instance : MeshInstance3D = $MeshInstance3D
 
@@ -15,7 +16,7 @@ var _angle_rad   : float
 
 func _ready() -> void:
 	_angle_rad   = deg_to_rad(bend_angle)
-	_bend_radius = tube_length / _angle_rad
+	_bend_radius = length / _angle_rad
 	
 	assert(_bend_radius > tube_radius,
 		"tube_length too short for bend_angle — tube would self-intersect")
@@ -34,15 +35,20 @@ func _ready() -> void:
 func _place_markers() -> void:
 	entry.transform = Transform3D.IDENTITY
 	
+	var roll := deg_to_rad(roll_angle)
+	
 	# Arc centre is at +X from the entry point
 	# Exit position is where the arc ends
-	exit.position = Vector3(
+		# Rotate the exit position around Z by roll_angle
+	var exit_pos := Vector3(
 		_bend_radius - _bend_radius * cos(_angle_rad),
 		0.0,
 		_bend_radius * sin(_angle_rad)
 	)
-	# Exit faces the tangent direction at the end of the arc
-	exit.rotation = Vector3(0.0, _angle_rad, 0.0)
+
+	var roll_basis := Basis(Vector3(0, 0, 1), roll)
+	exit.position = roll_basis * exit_pos
+	exit.rotation = (roll_basis * Basis(Vector3(0, 1, 0), _angle_rad)).get_euler()
 
 
 func _build_mesh() -> void:
@@ -58,25 +64,29 @@ func _build_mesh() -> void:
 	var indices  := PackedInt32Array()
 	
 	# Arc centre sits at (bend_radius, 0, 0) in local space
-	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
+	var roll       := deg_to_rad(roll_angle)
+	var roll_basis := Basis(Vector3(0, 0, 1), roll)
+	var arc_centre := roll_basis * Vector3(_bend_radius, 0.0, 0.0)
 	
 	for i in range(arc_steps + 1):
 		var u     := float(i) / float(arc_steps)
 		var arc_a := u * _angle_rad   # angle along the arc
 		
 		# Centre of the cross-section ring at this arc position
-		var ring_centre := arc_centre + Vector3(
-			-cos(arc_a) * _bend_radius,
+		# Unrolled ring centre, then apply roll
+		var ring_centre_local := Vector3(
+			_bend_radius * (1.0 - cos(arc_a)),
 			0.0,
-			 sin(arc_a) * _bend_radius
+			_bend_radius * sin(arc_a)
 		)
+		var ring_centre := roll_basis * ring_centre_local
 		
 		# Tangent along the arc at this point
-		var tangent := Vector3(sin(arc_a), 0.0, cos(arc_a)).normalized()
-		
-		# Outward radial from arc centre to ring centre — 
-		# this is the "away from bend centre" direction
-		var radial  := (ring_centre - arc_centre).normalized()
+		# Tangent and radial also get rolled
+		var tangent_local := Vector3(sin(arc_a), 0.0, cos(arc_a)).normalized()
+		var tangent       := roll_basis * tangent_local
+		var radial        := (ring_centre - arc_centre).normalized()
+		var up            := tangent.cross(radial).normalized()
 				
 		for j in range(ring_steps + 1):
 			var v       := float(j) / float(ring_steps)
@@ -85,7 +95,6 @@ func _build_mesh() -> void:
 			# Point on the cross-section ring, expressed in the
 			# local frame of (radial, up, tangent)
 			# cross-section in the plane perpendicular to the tangent
-			var up     := tangent.cross(radial).normalized()
 			var offset := (radial * cos(ring_a) + up * sin(ring_a)) * tube_radius
 			var pos     := ring_centre + offset
 			
@@ -131,56 +140,103 @@ func _build_collision() -> void:
 	var shape := body.get_child(0) as CollisionShape3D
 	var poly  := shape.shape as ConcavePolygonShape3D
 	poly.backface_collision = true
+	
+	
+func _get_arc_angle(unrolled_local: Vector3) -> float:
+	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
+	var to_vehicle := unrolled_local - arc_centre
+	to_vehicle.y   = 0.0
+	
+	# atan2 is unstable when to_vehicle is nearly parallel to the arc radius
+	# Use dot products against known entry/exit directions instead
+	# Entry tangent is (0,0,1), exit tangent is (sin(_angle_rad), 0, cos(_angle_rad))
+	# Project to_vehicle onto a more stable basis
+	
+	# The arc sweeps from angle 0 to _angle_rad
+	# Instead of atan2, find closest point by iterating a few Newton steps
+	var angle := atan2(to_vehicle.z, -to_vehicle.x)
+	angle = clamp(angle, 0.0, _angle_rad)
+	
+	# Refine with a few Newton-Raphson steps
+	for i in range(4):
+		var arc_pt := Vector3(
+			-cos(angle) * _bend_radius,
+			0.0,
+			 sin(angle) * _bend_radius
+		)
+		var tangent := Vector3(sin(angle), 0.0, cos(angle))
+		var diff    := (unrolled_local - arc_centre) - arc_pt
+		diff.y      = 0.0
+		var step    := diff.dot(tangent)
+		angle       = clamp(angle + step / _bend_radius, 0.0, _angle_rad)
+	
+	return angle
 
 
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
-	var local_pos  := to_local(world_pos)
+	var local_pos  := to_local(world_pos)	
+	var roll       := deg_to_rad(roll_angle)
+	var roll_basis := Basis(Vector3(0, 0, 1), roll)
+	
+	# Unroll the local position before doing the arc calculation
+	var unrolled   := roll_basis.inverse() * local_pos
 	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
 	
 	# Vector from arc centre to vehicle, flattened to XZ plane
 	# (Y is the up axis of the tube cross-section, not the arc plane)
-	var to_vehicle := local_pos - arc_centre
+	
+	
+	var to_vehicle := unrolled - arc_centre
 	to_vehicle.y   = 0.0
+	var angle      := _get_arc_angle(unrolled)
+	print("arc angle: ", rad_to_deg(angle), 
+		  "  max: ", rad_to_deg(_angle_rad),
+		  "  unrolled: ", unrolled.snapped(Vector3(0.1, 0.1, 0.1)))
 	
-	# At entry (Z=0 end), to_vehicle points in -X direction
-	# At exit (end of arc), to_vehicle points in -Z direction for 90 deg bend
-	# atan2(z, x) gives angle from +X axis
-	# We want angle from -X axis (entry) sweeping toward -Z (exit)
-	var angle := atan2(to_vehicle.z, -to_vehicle.x)
-	angle      = clamp(angle, 0.0, _angle_rad)
-	
-	# Nearest point on arc centreline
-	var arc_point := arc_centre + Vector3(
-		-cos(angle) * _bend_radius,
+	var arc_point_local := Vector3(
+		_bend_radius * (1.0 - cos(angle)),
 		0.0,
-		 sin(angle) * _bend_radius
+		_bend_radius * sin(angle)
 	)
+	var tangent_local := Vector3(sin(angle), 0.0, cos(angle)).normalized()
 	
-	# Tangent: derivative of arc_point with respect to angle
-	# d/dangle (-cos(angle), 0, sin(angle)) = (sin(angle), 0, cos(angle))
-	var tangent := Vector3(sin(angle), 0.0, cos(angle)).normalized()
+	# Re-apply roll to get back to section local space, then to world
+	var arc_point := roll_basis * arc_point_local
 	
-	# Verify: at angle=0 tangent should be (0,0,1) matching straight pipe exit
-	# At angle=PI/2 tangent should be (1,0,0)
-	
+	var epsilon    := 0.01
+	var angle1  :float= clamp(angle - epsilon, 0.0, _angle_rad)
+	var angle2  :float= clamp(angle + epsilon, 0.0, _angle_rad)
+
+	var arc_point1 := roll_basis * Vector3(
+		_bend_radius * (1.0 - cos(angle1)),
+		0.0,
+		_bend_radius * sin(angle1)
+	)
+	var arc_point2 := roll_basis * Vector3(
+		_bend_radius * (1.0 - cos(angle2)),
+		0.0,
+		_bend_radius * sin(angle2)
+	)
+
 	return {
-		"axis":   global_transform.basis * tangent,
-		"origin": to_global(arc_point),
+		"axis":   (to_global(arc_point2) - to_global(arc_point1)).normalized(),
+		"origin": to_global(roll_basis * arc_point_local),
 		"radius": tube_radius
 	}
 
 func contains_point(world_pos: Vector3) -> bool:
 	var local_pos  := to_local(world_pos)
-	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
-	var to_vehicle := local_pos - arc_centre
-	to_vehicle.y   = 0.0
-	var angle      := atan2(to_vehicle.z, -to_vehicle.x)
+	var roll       := deg_to_rad(roll_angle)
+	var roll_basis := Basis(Vector3(0, 0, 1), roll)
+	var unrolled   := roll_basis.inverse() * local_pos
+	
+	var angle      := _get_arc_angle(unrolled)
 	if angle < -0.1 or angle > _angle_rad + 0.1:
 		return false
-	var arc_point  := arc_centre + Vector3(
-		-cos(angle) * _bend_radius,
+	
+	var arc_point  := Vector3(
+		_bend_radius * (1.0 - cos(angle)),
 		0.0,
-		 sin(angle) * _bend_radius
+		_bend_radius * sin(angle)
 	)
-	var dist := local_pos.distance_to(arc_point)
-	return dist < tube_radius + 2.0
+	return unrolled.distance_to(arc_point) < tube_radius + 2.0
