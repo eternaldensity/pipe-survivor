@@ -16,7 +16,18 @@ func _ready() -> void:
 	network.add_section(bend_section, {"bend_angle": 45.0})
 	network.add_section(straight_section, { "exit_radius": 20.0, "length": 40.0 })   # rapidly widens
 	network.add_section(straight_section, { "entry_radius": 20.0, "exit_radius": 10.0, "length": 200.0 })   # tapers back to junction radius
-	# Phase 2: a junction with a side branch (trunk continues straight).
+	# Phase 2: a trident junction (trunk + two branches), each with a continuation.
 	var j := network.add_section(junction_section, {"trunk_length": 60.0, "branch_angle": 30.0, "tube_radius": 10.0})
-	network.add_section(straight_section, {"length": 80.0, "entry_radius": 10.0, "exit_radius": 10.0}, j, 0)   # trunk continuation
-	network.add_section(straight_section, {"length": 80.0, "entry_radius": 10.0, "exit_radius": 10.0}, j, 1)   # left branch
+	var trunk := network.add_section(straight_section, {"length": 80.0, "entry_radius": 10.0, "exit_radius": 10.0}, j, 0)
+	var left  := network.add_section(straight_section, {"length": 80.0, "entry_radius": 10.0, "exit_radius": 10.0}, j, 1)
+	var right := network.add_section(straight_section, {"length": 80.0, "entry_radius": 10.0, "exit_radius": 10.0}, j, 2)
+
+	# Trunk continuation: a gentle bend then a long straight.
+	network.add_section(bend_section, {"bend_angle": 25.0, "length": 150.0, "tube_radius": 10.0}, trunk, 0)
+	network.add_section(straight_section, {"length": 200.0, "entry_radius": 10.0, "exit_radius": 10.0})
+	# Left branch continuation.
+	network.add_section(bend_section, {"bend_angle": 20.0, "length": 120.0, "tube_radius": 10.0}, left, 0)
+	network.add_section(straight_section, {"length": 150.0, "entry_radius": 10.0, "exit_radius": 10.0})
+	# Right branch continuation (mirrored bend via roll 180).
+	network.add_section(bend_section, {"bend_angle": 20.0, "length": 120.0, "tube_radius": 10.0, "roll_angle": 180.0}, right, 0)
+	network.add_section(straight_section, {"length": 150.0, "entry_radius": 10.0, "exit_radius": 10.0})
