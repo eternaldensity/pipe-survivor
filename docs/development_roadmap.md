@@ -6,18 +6,19 @@ gating principle.
 
 ---
 
-## Phase 0 — Driving Feel Core (mostly complete)
+## Phase 0 — Driving Feel Core (complete)
 
 **Status:** Vehicle movement, gravity, steering, spiralling, centripetal load, and
-multi-section traversal are working. Bend/straight geometry and section snapping work.
+multi-section traversal are working. Bend/straight/junction geometry and section snapping work.
+Smooth steering-rate ramping is implemented. `tests/run.sh` verifies full-network traversal,
+steering, branch driving, and tube-property correctness headlessly.
 
-**Remaining polish (carry into Phase 1):**
-- Smooth steering-rate ramping (currently all-or-nothing).
-- Camera behaviour and speed feel.
+**Remaining polish (carried into Phase 1):**
+- Camera behaviour and speed-feel tuning (exports now exist on the vehicle).
 - Confirm half-lit pipe cause (normals/winding) and fix in mesh generation.
 
 **Exit criteria:** `tests/run.sh` passes; vehicle can traverse the full authored network
-without NaN, radius stays within pipe, section transitions are seamless.
+without NaN, radius stays within pipe, section transitions are seamless. **Met.**
 
 ---
 
@@ -26,14 +27,15 @@ without NaN, radius stays within pipe, section transitions are seamless.
 **Goal:** Make the core fantasy (tube driving) feel right before anything else.
 
 Deliverables:
-1. Steering ramp: `steering_amount` lerps toward input with a tunable rate; expose as export.
-2. Camera: follow smoothing, look-ahead along tube axis, roll with vehicle.
-3. Speed feel: tweak constants (SPEED, ACCELERATION, FRICTION, TURN_SPEED) via exports; add a
-   simple speed HUD readout for tuning.
-4. Lighting: replace the single directional light with an enclosed-tube scheme — ambient fill
-   + per-section emissive/area lights; `AreaLight3D` for rest zones (spec §7.3).
-5. Resolve half-lit normals: diagnose with normal visualisation; make straight and bend pipes
-   agree on normal convention (inward) without breaking collision.
+1. **[Done]** Steering ramp: `steering_amount` moves toward input with a tunable rate
+   (`steer_accel` export).
+2. **[Open]** Camera: follow smoothing, look-ahead along tube axis, roll with vehicle.
+3. **[Partial]** Speed feel: `gravity`, `speed`, `acceleration`, `friction`, `turn_speed`,
+   `steer_accel` are now exports. A speed HUD readout is still missing.
+4. **[Partial]** Lighting: ambient world environment added; per-section emissive/area lights
+   and `AreaLight3D` rest-zone lighting still pending.
+5. **[Open]** Resolve half-lit normals: flipping straight normals inward was tried and
+   reverted (made it worse). Needs visual diagnosis in the editor before another fix.
 
 **Exit criteria:** A playtester can drive the full network and report "feels good"; no
 half-lit surfaces; `tests/run.sh` still green.
@@ -45,18 +47,20 @@ half-lit surfaces; `tests/run.sh` still green.
 **Goal:** Turn the linear chain into a tree so routing decisions exist.
 
 Deliverables (spec §6):
-1. `PipeSection` interface: `exit` → `exits: Array[Marker3D]`; `get_tube_properties` and
-   `contains_point` updated.
-2. `PipeNetwork.add_section(packed, props, from_section, from_exit)`; remove `sections.back()`
-   assumption.
-3. `JunctionPipeSection`: parameterised exports (radius, trunk length, branch angle, branch
-   length, blend length, has_trunk, left/right). Topologies: exit branch, Y-split, trident.
-4. Centrelines first: cubic Bezier / `Curve3D` per path; `get_tube_properties` uses
+1. **[Done]** `PipeSection` interface: `exit` → `exits: Array[Marker3D]`; `get_tube_properties`
+   and `contains_point` updated.
+2. **[Done]** `PipeNetwork.add_section(packed, props, from_section, from_exit)`; branch
+   attachment no longer assumes `sections.back()`.
+3. **[Partial]** `JunctionPipeSection`: radius, trunk length, branch angle, branch length
+   exports; Y-split with trunk + two branches. Still missing: blend length, `has_trunk`,
+   selectable left/right branches, trident topology.
+4. **[Done]** Centrelines first: `Curve3D` cubic Bezier per path; `get_tube_properties` uses
    `get_closest_offset`; exit markers at endpoints with matching orientation.
-5. Mesh: sweep ring along each centreline; blend rings in transition zone (~3× radius);
-   consistent ring segment count (32) at all mouths; trimesh collision with backface collision.
-6. Wall-colour shader: per-fragment nearest-exit-centreline colour mix with smoothstep edge;
-   neutral before decision point, coloured after.
+5. **[Partial]** Mesh: rings swept along each centreline with trimesh + backface collision.
+   Still missing: blended transition zone (~3× radius) so the separate tubes merge smoothly.
+6. **[Partial]** Branch identification: branches have distinct colours via material overrides.
+   Still missing: the per-fragment Voronoi wall-colour shader for a blended mesh.
+7. **[Done]** Junction integrated into `main.gd`; harness drives through a branch.
 
 **Exit criteria:** A junction scene loads, vehicle can choose either branch, snapping/collision
 valid, `tests/run.sh` extended with a junction traversal case passes.

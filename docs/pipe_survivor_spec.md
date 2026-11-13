@@ -155,7 +155,7 @@ The world is a chain/graph of **pipe sections**. Each section is a scene with **
 
 ### 5.5 Bend tube-properties details (hard-won)
 - Arc angle is found by `atan2` seeded then refined with a few Newton steps (raw `atan2` was unstable on the inside/outside of bends).
-- Tangent is computed by **sampling the arc at `angle - ε` and `angle + ε`, both clamped**. One-sided sampling produced a zero vector when clamped at the end of the arc, which removed gravity at the exit.
+- Tangent is computed **analytically** as `(sin θ, 0, cos θ)` in unrolled local space, then rolled and transformed to world. This replaced an earlier finite-difference sample at `angle ± ε`, which degenerated at clamped arc endpoints and for very small bend angles.
 - Blending properties between adjacent sections near joins was tried and made things worse; it was reverted.
 
 ### 5.6 Known gotchas (carry forward)
@@ -197,7 +197,7 @@ Colour via a **shader rather than material boundaries in the mesh**: per-fragmen
 
 ## 7. Immediate Known Issues / Next Steps
 
-1. **Half-lit pipes (normals bug).** On existing pipes, one half of the cross-section (split lengthways) appears dark and the break is disjoint between pipes, so it is not the directional light. Suspected: inverted or inconsistent normals and/or winding on half the ring. Diagnose with the editor's normal-visualisation / debug draw modes, then fix in mesh generation (bend) and check the straight pipe's `CylinderMesh` (front-face cull used to see the inside). Fix before building junction meshes so they inherit correct conventions.
+1. **Half-lit pipes (normals bug).** On existing pipes, one half of the cross-section (split lengthways) appears dark and the break is disjoint between pipes, so it is not the directional light. Suspected: inverted or inconsistent normals and/or winding on half the ring. Diagnose with the editor's normal-visualisation / debug draw modes, then fix in mesh generation (bend) and check the straight pipe's `CylinderMesh` (front-face cull used to see the inside). Fix before building junction meshes so they inherit correct conventions. **Status note:** flipping straight-pipe normals inward via `SurfaceTool.generate_normals(true)` was tried and reverted — it made rendering worse. The root cause is still unconfirmed; treat this as needs visual diagnosis rather than a known code fix.
 2. **Junction implementation:** exit array refactor in `PipeSection`/`PipeNetwork` → junction centrelines → `get_tube_properties`/`contains_point` → markers → mesh blend → colour shader.
 3. **Lighting for enclosed tubes:** a single directional light pointing down the tube leaves it dark; the enclosed environment needs deliberate lighting (emissive/area lights, e.g. `AreaLight3D` for rest zones).
 4. **Driving feel polish:** smooth steering ramp, camera behaviour, speed feel.
