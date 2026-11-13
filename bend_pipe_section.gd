@@ -134,11 +134,15 @@ func _build_collision() -> void:
 		
 	mesh_instance.create_trimesh_collision()
 	await get_tree().process_frame
-	# create_trimesh_collision makes a StaticBody3D sibling of mesh_instance
+	# create_trimesh_collision makes a StaticBody3D child of mesh_instance
+	if mesh_instance.get_child_count() == 0:
+		return
 	var body  := mesh_instance.get_child(0) as StaticBody3D
+	if body == null or body.get_child_count() == 0:
+		return
 	var shape := body.get_child(0) as CollisionShape3D
-	var poly  := shape.shape as ConcavePolygonShape3D
-	poly.backface_collision = true
+	if shape and shape.shape is ConcavePolygonShape3D:
+		(shape.shape as ConcavePolygonShape3D).backface_collision = true
 	
 	
 func _get_arc_angle(unrolled_local: Vector3) -> float:
@@ -154,7 +158,7 @@ func _get_arc_angle(unrolled_local: Vector3) -> float:
 	# The arc sweeps from angle 0 to _angle_rad
 	# Instead of atan2, find closest point by iterating a few Newton steps
 	var angle := atan2(to_vehicle.z, -to_vehicle.x)
-	angle = clamp(angle, 0.0, _angle_rad)
+	angle = clampf(angle, 0.0, _angle_rad)
 	
 	# Refine with a few Newton-Raphson steps
 	for i in range(4):
@@ -167,7 +171,7 @@ func _get_arc_angle(unrolled_local: Vector3) -> float:
 		var diff    := (unrolled_local - arc_centre) - arc_pt
 		diff.y      = 0.0
 		var step    := diff.dot(tangent)
-		angle       = clamp(angle + step / _bend_radius, 0.0, _angle_rad)
+		angle       = clampf(angle + step / _bend_radius, 0.0, _angle_rad)
 	
 	return angle
 
@@ -179,14 +183,7 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	
 	# Unroll the local position before doing the arc calculation
 	var unrolled   := roll_basis.inverse() * local_pos
-	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
 	
-	# Vector from arc centre to vehicle, flattened to XZ plane
-	# (Y is the up axis of the tube cross-section, not the arc plane)
-	
-	
-	var to_vehicle := unrolled - arc_centre
-	to_vehicle.y   = 0.0
 	var angle      := _get_arc_angle(unrolled)
 	
 	var arc_point_local := Vector3(

@@ -22,12 +22,16 @@ func _ready() -> void:
 	m.cap_bottom    = false
 	mesh_instance.mesh = m	
 	mesh_instance.create_trimesh_collision()
-	# this auto-generates a StaticBody3D with correct collision as a sibling
+	# this auto-generates a StaticBody3D with correct collision as a child
 	await get_tree().process_frame  # let the child node appear
+	if mesh_instance.get_child_count() == 0:
+		return
 	var body  := mesh_instance.get_child(0) as StaticBody3D
+	if body == null or body.get_child_count() == 0:
+		return
 	var shape := body.get_child(0) as CollisionShape3D
-	var poly  := shape.shape as ConcavePolygonShape3D
-	poly.backface_collision = true
+	if shape and shape.shape is ConcavePolygonShape3D:
+		(shape.shape as ConcavePolygonShape3D).backface_collision = true
 
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	# Project world_pos onto the section's central axis

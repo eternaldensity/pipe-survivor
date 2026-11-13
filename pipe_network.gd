@@ -29,6 +29,8 @@ func add_section(packed: PackedScene, props: Dictionary = {}, from_section: Pipe
 
 
 func get_section_at(world_pos: Vector3) -> PipeSection:
+	if sections.is_empty():
+		return null
 	# Stick with current section until we're clearly outside it
 	if current_section != null and current_section.contains_point(world_pos):
 		return current_section
@@ -37,14 +39,16 @@ func get_section_at(world_pos: Vector3) -> PipeSection:
 		if s.contains_point(world_pos):
 			current_section = s
 			return s
-	# Fall back to nearest midpoint
+	# Fall back to the section with the nearest entry/exit marker.
 	var best      : PipeSection = null
 	var best_dist := INF
 	for s in sections:
-		var mid  := (s.entry.global_position + s.exit.global_position) * 0.5
-		var dist := world_pos.distance_squared_to(mid)
-		if dist < best_dist:
-			best_dist = dist
+		var d := world_pos.distance_squared_to(s.entry.global_position)
+		for e in s.exits:
+			d = minf(d, world_pos.distance_squared_to(e.global_position))
+		d = minf(d, world_pos.distance_squared_to(s.exit.global_position))
+		if d < best_dist:
+			best_dist = d
 			best      = s
 	current_section = best
 	return best
