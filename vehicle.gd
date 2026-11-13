@@ -5,9 +5,11 @@ const SPEED        := 20.0
 const ACCELERATION := 50.0
 const FRICTION     := 35.0
 const TURN_SPEED   := 2.0   # radians per second
+const STEER_ACCEL  := 6.0   # steering rate ramp (units/sec)
 
-var tube_origin := Vector3.ZERO
-var tube_axis   := Vector3(0.0, 0.0, 1.0)
+var tube_origin     := Vector3.ZERO
+var tube_axis       := Vector3(0.0, 0.0, 1.0)
+var steering_amount := 0.0
 
 @export var network : PipeNetwork
 
@@ -38,9 +40,11 @@ func _physics_process(delta: float) -> void:
 	# ── Steering: rotate heading around the surface normal ────────────────
 	# This is pure yaw relative to the tube surface — left/right turns the
 	# vehicle, and from then on forward always means "where I'm pointing"
-	var turn := Input.get_axis("ui_left", "ui_right")
-	if abs(turn) > 0.001:
-		var steer := Basis(inward, -turn * TURN_SPEED * delta)
+	# Steering input ramps smoothly instead of being all-or-nothing.
+	var target_turn := Input.get_axis("ui_left", "ui_right")
+	steering_amount = move_toward(steering_amount, target_turn, STEER_ACCEL * delta)
+	if abs(steering_amount) > 0.001:
+		var steer := Basis(inward, -steering_amount * TURN_SPEED * delta)
 		global_transform.basis = steer * global_transform.basis
 
 	# ── Gravity ───────────────────────────────────────────────────────────
