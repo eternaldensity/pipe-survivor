@@ -41,7 +41,7 @@ func _ready() -> void:
 	if left:  exits.append(left)
 	if right: exits.append(right)
 
-	_build_meshes()
+	await _build_meshes()
 
 	if Engine.is_editor_hint():
 		notify_property_list_changed()
@@ -107,39 +107,150 @@ func contains_point(world_pos: Vector3) -> bool:
 	return info["dist"] < tube_radius + 3.0
 
 func _build_meshes() -> void:
-	# Clear previously generated branch mesh instances immediately, otherwise
-	# editor re-runs can briefly duplicate names/geometry.
+	# Clear previously generated branch meshes/collision so editor re-runs and
+	# property changes rebuild cleanly.
 	for c in get_children():
 		if c is MeshInstance3D and c.name.begins_with("BranchMesh"):
 			remove_child(c)
 			c.free()
+	if mesh_instance:
+		for c in mesh_instance.get_children():
+			mesh_instance.remove_child(c)
+			c.free()
 
 	_ensure_curves()
-
-	# Trunk: swept along its curve, minus the parts inside the branches.
+	var union := await _build_union_mesh()
+	if union == null:
+		return
 	if mesh_instance:
-		mesh_instance.mesh = _build_tube_mesh(_curves[0], tube_radius, [_curves[1], _curves[2]])
+		mesh_instance.mesh = union
 		mesh_instance.position = Vector3.ZERO
 		mesh_instance.basis = Basis.IDENTITY
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.7, 0.7, 0.75)
+		mat.vertex_color_use_as_albedo = true
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		mesh_instance.material_override = mat
 
-	# Branches: swept along their curves.
-	var branch_names := ["BranchMeshLeft", "BranchMeshRight"]
-	for i in range(2):
-		var bmi := MeshInstance3D.new()
-		bmi.name = branch_names[i]
-		var other := _curves[2 - i]  # the opposite branch
-		bmi.mesh = _build_tube_mesh(_curves[i + 1], tube_radius, [_curves[0], other])
-		var bmat := StandardMaterial3D.new()
-		bmat.albedo_color = (Color(0.3, 0.6, 1.0) if i == 0 else Color(1.0, 0.5, 0.3))
-		bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		bmi.material_override = bmat
-		add_child(bmi)
+func _build_union_mesh() -> ArrayMesh:
+	# Build closed capped tubes and let CSG compute the true union surface. This
+	# removes internal walls and produces smooth intersection curves instead of
+	# the jagged, tunnelled result of filtering overlapping swept meshes.
+	var combiner := CSGCombiner3D.new()
+	combiner.name = "CSGUnion"
+	combiner.visible = false
+	combiner.operation = CSGShape3D.OPERATION_UNION
+	for c in _curves:
+		var cm := CSGMesh3D.new()
+		cm.mesh = _build_tube_mesh(c, tube_radius)
+		combiner.add_child(cm)
+	add_child(combiner)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var union: ArrayMesh = null
+	for m in combiner.get_meshes():
+		if m is ArrayMesh:
+			union = m
+			break
+	remove_child(combiner)
+	combiner.free()
+	if union == null:
+		push_error("Junction CSG union produced no mesh")
+		return null
+	return _strip_caps_and_color(union)
 
-func _build_tube_mesh(curve: Curve3D, radius: float, others: Array = []) -> ArrayMesh:
+func _opening_planes() -> Array:
+	# [point, outward tangent] for every mouth of the junction.
+	var planes: Array = []
+	var t0 := _curves[0].sample_baked_with_rotation(0.0)
+	planes.append([t0.origin, t0.basis.z])  # entry: outward is -tangent
+	var t1 := _curves[0].sample_baked_with_rotation(_curves[0].get_baked_length())
+	planes.append([t1.origin, -t1.basis.z])
+	for i in range(1, 3):
+		var c := _curves[i]
+		var te := c.sample_baked_with_rotation(c.get_baked_length())
+		planes.append([te.origin, -te.basis.z])
+	return planes
+
+func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
+	var planes := _opening_planes()
+	var colors := [Color(0.7, 0.7, 0.75), Color(0.3, 0.6, 1.0), Color(1.0, 0.5, 0.3)]
+	var out_verts := PackedVector3Array()
+	var out_norms := PackedVector3Array()
+	var out_uvs := PackedVector2Array()
+	var out_cols := PackedColorArray()
+	var out_idx := PackedInt32Array()
+
+	for surf in range(src.get_surface_count()):
+		var arr := src.surface_get_arrays(surf)
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL] if arr[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
+		var uvs: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV] if arr[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
+		var raw_idx = arr[Mesh.ARRAY_INDEX]
+		var idx: PackedInt32Array = raw_idx if raw_idx != null else PackedInt32Array()
+		if idx.is_empty():
+			idx.resize(verts.size())
+			for i in range(verts.size()): idx[i] = i
+
+		for t in range(idx.size() / 3):
+			var i0 := idx[t * 3]
+			var i1 := idx[t * 3 + 1]
+			var i2 := idx[t * 3 + 2]
+			var p0 := verts[i0]
+			var p1 := verts[i1]
+			var p2 := verts[i2]
+			var face_n := (p1 - p0).cross(p2 - p0)
+			if face_n.length_squared() < 1e-12:
+				continue
+			face_n = face_n.normalized()
+			var centroid := (p0 + p1 + p2) / 3.0
+
+			# Drop the flat cap at each mouth; the attached pipe provides the
+			# opening there.
+			var is_cap := false
+			for pl in planes:
+				var pp: Vector3 = pl[0]
+				var pn: Vector3 = pl[1]
+				if absf((p0 - pp).dot(pn)) < 1.0 \
+					and absf((p1 - pp).dot(pn)) < 1.0 \
+					and absf((p2 - pp).dot(pn)) < 1.0 \
+					and absf(face_n.dot(pn)) > 0.7:
+					is_cap = true
+					break
+			if is_cap:
+				continue
+
+			# Colour by nearest branch centreline.
+			var best_c := 0
+			var best_d := INF
+			for i in range(3):
+				var off: float = _curves[i].get_closest_offset(centroid)
+				var cp: Vector3 = _curves[i].sample_baked(off)
+				var d := centroid.distance_to(cp)
+				if d < best_d:
+					best_d = d
+					best_c = i
+
+			for k in [i0, i1, i2]:
+				out_idx.append(out_verts.size())
+				out_verts.append(verts[k])
+				var n: Vector3 = norms[k] if k < norms.size() else face_n
+				out_norms.append(n)
+				out_uvs.append(uvs[k] if k < uvs.size() else Vector2.ZERO)
+				out_cols.append(colors[best_c])
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = out_verts
+	arrays[Mesh.ARRAY_NORMAL] = out_norms
+	arrays[Mesh.ARRAY_TEX_UV] = out_uvs
+	arrays[Mesh.ARRAY_COLOR] = out_cols
+	arrays[Mesh.ARRAY_INDEX] = out_idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+func _build_tube_mesh(curve: Curve3D, radius: float) -> ArrayMesh:
+	# Closed capped tube with outward-facing normals, suitable for a CSG union.
 	var baked_len := curve.get_baked_length()
 	var steps: int = max(8, int(baked_len / 5.0))
 	var ring_steps := PipeSection.RING_SEGMENTS
@@ -148,44 +259,48 @@ func _build_tube_mesh(curve: Curve3D, radius: float, others: Array = []) -> Arra
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
 
+	# One ring of shared vertices per step (no duplicated seam vertex), so the
+	# surface is a closed manifold and can be used for CSG booleans.
 	for i in range(steps + 1):
 		var u := float(i) / float(steps)
 		var tr := curve.sample_baked_with_rotation(u * baked_len)
 		var centre := tr.origin
 		var bx := tr.basis.x
 		var by := tr.basis.y
-		for j in range(ring_steps + 1):
+		for j in range(ring_steps):
 			var v := float(j) / float(ring_steps)
 			var ring_a := v * TAU
 			var offset := (bx * cos(ring_a) + by * sin(ring_a))
 			verts.append(centre + offset * radius)
-			normals.append(-offset.normalized())
+			normals.append(offset.normalized())
 			uvs.append(Vector2(u, v))
 
-	# Drop triangles that lie inside another tube of this junction. This turns
-	# the overlapping swept tubes into a single open union: the trunk wall gets
-	# a hole where a branch attaches, and branch walls stop at the trunk wall.
 	for i in range(steps):
 		for j in range(ring_steps):
-			var a := i * (ring_steps + 1) + j
-			var b := (i + 1) * (ring_steps + 1) + j
-			var c := (i + 1) * (ring_steps + 1) + j + 1
-			var d := i * (ring_steps + 1) + j + 1
-			var tris := [[a, b, c], [a, c, d]]
-			for tri in tris:
-				var p0: Vector3 = verts[tri[0]]
-				var p1: Vector3 = verts[tri[1]]
-				var p2: Vector3 = verts[tri[2]]
-				var centroid := (p0 + p1 + p2) / 3.0
-				var inside := false
-				for oc in others:
-					var off: float = oc.get_closest_offset(centroid)
-					var op: Vector3 = oc.sample_baked(off)
-					if centroid.distance_to(op) < radius - 0.75:
-						inside = true
-						break
-				if not inside:
-					indices.append_array(tri)
+			var j2 := (j + 1) % ring_steps
+			var a := i * ring_steps + j
+			var b := (i + 1) * ring_steps + j
+			var c := (i + 1) * ring_steps + j2
+			var d := i * ring_steps + j2
+			indices.append_array([a, b, c, a, c, d])
+
+	# Flat fan caps at both ends so the volume is closed for CSG.
+	var tr0 := curve.sample_baked_with_rotation(0.0)
+	var tr1 := curve.sample_baked_with_rotation(baked_len)
+	var start_ci := verts.size()
+	verts.append(tr0.origin)
+	normals.append(tr0.basis.z)
+	uvs.append(Vector2(0.5, 0.5))
+	var end_ci := verts.size()
+	verts.append(tr1.origin)
+	normals.append(-tr1.basis.z)
+	uvs.append(Vector2(0.5, 0.5))
+	for j in range(ring_steps):
+		var j2 := (j + 1) % ring_steps
+		var e0 := steps * ring_steps + j
+		var e1 := steps * ring_steps + j2
+		indices.append_array([start_ci, j, j2])
+		indices.append_array([end_ci, e1, e0])
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -198,21 +313,16 @@ func _build_tube_mesh(curve: Curve3D, radius: float, others: Array = []) -> Arra
 	return mesh
 
 func _build_collisions() -> void:
-	var meshes: Array[MeshInstance3D] = [mesh_instance]
-	for c in get_children():
-		if c is MeshInstance3D and c.name.begins_with("BranchMesh"):
-			meshes.append(c)
-	for mi in meshes:
-		if mi == null or mi.mesh == null:
-			continue
-		if mi.get_child_count() == 0:
-			mi.create_trimesh_collision()
+	if mesh_instance == null or mesh_instance.mesh == null:
+		return
+	if mesh_instance.get_child_count() == 0:
+		mesh_instance.create_trimesh_collision()
 	await get_tree().process_frame
-	for mi in meshes:
-		if mi == null or mi.get_child_count() == 0:
-			continue
-		var body := mi.get_child(0) as StaticBody3D
-		if body and body.get_child_count() > 0:
-			var shape := body.get_child(0) as CollisionShape3D
-			if shape and shape.shape is ConcavePolygonShape3D:
-				(shape.shape as ConcavePolygonShape3D).backface_collision = true
+	if mesh_instance.get_child_count() == 0:
+		return
+	var body := mesh_instance.get_child(0) as StaticBody3D
+	if body == null or body.get_child_count() == 0:
+		return
+	var shape := body.get_child(0) as CollisionShape3D
+	if shape and shape.shape is ConcavePolygonShape3D:
+		(shape.shape as ConcavePolygonShape3D).backface_collision = true
