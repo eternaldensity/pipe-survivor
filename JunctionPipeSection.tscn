@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://junctionpipesec01"]
+
+[ext_resource type="Script" path="res://junction_pipe_section.gd" id="1_jps"]
+
+[node name="JunctionPipeSection" type="Node3D"]
+script = ExtResource("1_jps")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+
+[node name="Entry" type="Marker3D" parent="."]
+
+[node name="Exit" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 50)
+
+[node name="ExitLeft" type="Marker3D" parent="."]
+
+[node name="ExitRight" type="Marker3D" parent="."]
