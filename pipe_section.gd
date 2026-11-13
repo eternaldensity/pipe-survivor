@@ -10,7 +10,17 @@ extends Node3D
 # junctions populate it with all of their exit markers.
 var exits : Array[Marker3D] = []
 
+# Set by PipeNetwork.add_section when this section is snapped onto a prior exit.
+var attached_from : PipeSection = null
+var attached_exit : int = -1
+
 const RING_SEGMENTS := 32
+
+func get_entry_radius() -> float:
+	return 0.0
+
+func get_exit_radius(_exit_index: int = 0) -> float:
+	return 0.0
 
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	push_error("get_tube_properties not implemented in " + name)

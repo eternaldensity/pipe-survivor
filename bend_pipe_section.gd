@@ -176,6 +176,12 @@ func _get_arc_angle(unrolled_local: Vector3) -> float:
 	return angle
 
 
+func get_entry_radius() -> float:
+	return tube_radius
+
+func get_exit_radius(_exit_index: int = 0) -> float:
+	return tube_radius
+
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var local_pos  := to_local(world_pos)	
 	var roll       := deg_to_rad(roll_angle)

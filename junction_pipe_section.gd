@@ -3,10 +3,11 @@
 class_name JunctionPipeSection
 extends PipeSection
 
-@export var tube_radius   : float = 10.0
-@export var trunk_length  : float = 50.0
-@export var branch_angle  : float = 30.0   # degrees, half-spread of the two branches
-@export var branch_length : float = 80.0
+@export var tube_radius    : float = 10.0
+@export var trunk_length   : float = 50.0
+@export var branch_angle   : float = 30.0   # degrees, half-spread of the two branches
+@export var branch_length  : float = 80.0
+@export var decision_offset: float = 20.0   # distance along trunk before branches diverge
 
 @onready var mesh_instance : MeshInstance3D = $MeshInstance3D
 
@@ -28,11 +29,12 @@ func _ready() -> void:
 	var left  := get_node_or_null("ExitLeft")  as Marker3D
 	var right := get_node_or_null("ExitRight") as Marker3D
 	var a := deg_to_rad(branch_angle)
+	var decision := Vector3(0.0, 0.0, decision_offset)
 	if left:
-		left.position = Vector3(-sin(a) * branch_length, 0.0, cos(a) * branch_length)
+		left.position = decision + Vector3(-sin(a), 0.0, cos(a)) * branch_length
 		left.rotation = Vector3(0.0, -a, 0.0)
 	if right:
-		right.position = Vector3(sin(a) * branch_length, 0.0, cos(a) * branch_length)
+		right.position = decision + Vector3(sin(a), 0.0, cos(a)) * branch_length
 		right.rotation = Vector3(0.0, a, 0.0)
 
 	exits = [exit]
@@ -55,14 +57,15 @@ func _build_curves() -> void:
 	trunk.add_point(Vector3(0.0, 0.0, trunk_length), Vector3(0.0, 0.0, -trunk_length * 0.4), Vector3.ZERO)
 	_curves.append(trunk)
 
-	# Branches: cubic bezier peeling off from +Z to branch direction.
+	# Branches: cubic bezier peeling off from the decision point on the trunk.
 	var ang := deg_to_rad(branch_angle)
+	var decision := Vector3(0.0, 0.0, decision_offset)
 	var dirs := [Vector3(-sin(ang), 0.0, cos(ang)), Vector3(sin(ang), 0.0, cos(ang))]
 	for dir in dirs:
 		var d: Vector3 = dir
-		var end := d * branch_length
+		var end := decision + d * branch_length
 		var c := Curve3D.new()
-		c.add_point(Vector3.ZERO, Vector3.ZERO, Vector3(0.0, 0.0, branch_length * 0.4))
+		c.add_point(decision, Vector3.ZERO, Vector3(0.0, 0.0, branch_length * 0.4))
 		c.add_point(end, -d * (branch_length * 0.4), Vector3.ZERO)
 		_curves.append(c)
 
@@ -80,6 +83,12 @@ func _nearest_curve_point(local_pos: Vector3) -> Dictionary:
 			best_point = pt
 			best_tan = -tr.basis.z
 	return {"point": best_point, "tangent": best_tan, "dist": best_dist}
+
+func get_entry_radius() -> float:
+	return tube_radius
+
+func get_exit_radius(_exit_index: int = 0) -> float:
+	return tube_radius
 
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var local_pos := to_local(world_pos)
