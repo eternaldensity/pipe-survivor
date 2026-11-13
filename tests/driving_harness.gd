@@ -121,6 +121,20 @@ func _test_properties() -> void:
 				_assert(abs(p["axis"].length() - 1.0) < 1e-5, "straight axis not unit (%s)" % ss.name)
 				_assert((wp - p["origin"]).length() < 1e-3, "straight origin off centerline (%s)" % ss.name)
 				_assert(ss.contains_point(wp), "straight contains_point false on centerline (%s)" % ss.name)
+		elif s is JunctionPipeSection:
+			var js := s as JunctionPipeSection
+			js._build_paths()
+			for path in js._paths:
+				var spt: Vector3 = path[0]
+				var ept: Vector3 = path[1]
+				for k in range(5):
+					var t := float(k) / 4.0
+					var lp := spt.lerp(ept, t)
+					var wp := js.to_global(lp)
+					var p := js.get_tube_properties(wp)
+					_assert(abs(p["axis"].length() - 1.0) < 1e-4, "junction axis not unit (%s)" % js.name)
+					_assert((wp - p["origin"]).length() < 1e-2, "junction origin off centreline (%s)" % js.name)
+					_assert(js.contains_point(wp), "junction contains_point false on centreline (%s)" % js.name)
 		elif s is BendPipeSection:
 			var bs := s as BendPipeSection
 			var r := bs._bend_radius
