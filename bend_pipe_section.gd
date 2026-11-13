@@ -20,9 +20,7 @@ func _ready() -> void:
 	
 	assert(_bend_radius > tube_radius,
 		"tube_length too short for bend_angle — tube would self-intersect")
-	#print("entry tangent: ", Vector3(sin(0.0), 0.0, cos(0.0)))
-	#print("exit tangent: ", Vector3(sin(_angle_rad), 0.0, cos(_angle_rad)))
-	#print("bend basis: ", global_transform.basis)
+
 	
 	_build_mesh()
 	_place_markers()
@@ -189,9 +187,6 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var to_vehicle := unrolled - arc_centre
 	to_vehicle.y   = 0.0
 	var angle      := _get_arc_angle(unrolled)
-	print("arc angle: ", rad_to_deg(angle), 
-		  "  max: ", rad_to_deg(_angle_rad),
-		  "  unrolled: ", unrolled.snapped(Vector3(0.1, 0.1, 0.1)))
 	
 	var arc_point_local := Vector3(
 		_bend_radius * (1.0 - cos(angle)),
@@ -199,23 +194,12 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 		_bend_radius * sin(angle)
 	)
 	
-	var epsilon    := 0.01
-	var angle1  :float= clamp(angle - epsilon, 0.0, _angle_rad)
-	var angle2  :float= clamp(angle + epsilon, 0.0, _angle_rad)
-
-	var arc_point1 := roll_basis * Vector3(
-		_bend_radius * (1.0 - cos(angle1)),
-		0.0,
-		_bend_radius * sin(angle1)
-	)
-	var arc_point2 := roll_basis * Vector3(
-		_bend_radius * (1.0 - cos(angle2)),
-		0.0,
-		_bend_radius * sin(angle2)
-	)
+	# Tangent to the arc at this angle (analytic, avoids finite-difference
+	# degeneracy at the endpoints / for very small bend angles).
+	var tangent_local := roll_basis * Vector3(sin(angle), 0.0, cos(angle))
 
 	return {
-		"axis":   (to_global(arc_point2) - to_global(arc_point1)).normalized(),
+		"axis":   (global_transform.basis * tangent_local).normalized(),
 		"origin": to_global(roll_basis * arc_point_local),
 		"radius": tube_radius
 	}

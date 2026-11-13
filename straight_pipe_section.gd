@@ -33,13 +33,14 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var fwd      := global_transform.basis.z
 	var to_pos   := world_pos - entry.global_position
 	var along    := to_pos.dot(fwd)
-	var t:float   = clamp(along / length, 0.0, 1.0)
+	var along_c  : float = clampf(along, 0.0, length)
+	var t: float = along_c / length
 	
 	# Radius at this point along the taper
 	var r        := lerpf(entry_radius, exit_radius, t)
 	
 	# Nearest point on the centreline
-	var origin   := entry.global_position + fwd * along
+	var origin   : Vector3 = entry.global_position + fwd * along_c
 	
 	return {
 		"axis":   fwd,

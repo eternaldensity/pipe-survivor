@@ -24,9 +24,6 @@ func add_section(packed: PackedScene, props: Dictionary = {}) -> PipeSection:
 		var exit_T     := prev.exit.global_transform
 		var entry_local := section.entry.transform   # local to the section
 		section.global_transform = exit_T * entry_local.affine_inverse()
-		print("exit_T: ", exit_T)
-		print("entry_local: ", entry_local)
-		print("result: ", exit_T * entry_local.affine_inverse())
 
 	sections.append(section)
 	return section
@@ -51,7 +48,4 @@ func get_section_at(world_pos: Vector3) -> PipeSection:
 			best_dist = dist
 			best      = s
 	current_section = best
-	print("section: ", best.name, 
-	  "  exit dist: ", world_pos.distance_to(current_section.exit.global_position),
-	  "  contains: ", current_section.contains_point(world_pos))
 	return best
