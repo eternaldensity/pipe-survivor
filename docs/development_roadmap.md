@@ -57,7 +57,9 @@ Deliverables (spec §6):
 4. **[Done]** Centrelines first: `Curve3D` cubic Bezier per path; `get_tube_properties` uses
    `get_closest_offset`; exit markers at endpoints with matching orientation.
 5. **[Partial]** Mesh: rings swept along each centreline with trimesh + backface collision.
-   Still missing: blended transition zone (~3× radius) so the separate tubes merge smoothly.
+   Internal triangles inside neighbouring tubes are discarded, producing an open union with no
+   internal walls. Still missing: a smoothed blend zone (~3× radius) and lower-poly transition
+   so the union reads as one surface rather than intersecting tubes.
 6. **[Partial]** Branch identification: branches have distinct colours via material overrides.
    Still missing: the per-fragment Voronoi wall-colour shader for a blended mesh.
 7. **[Done]** Junction integrated into `main.gd`; harness drives through a branch.
