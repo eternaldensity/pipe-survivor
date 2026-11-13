@@ -6,6 +6,13 @@
 [ext_resource type="PackedScene" uid="uid://bx086p6j0al25" path="res://StraightPipeSection.tscn" id="2_1bvp3"]
 [ext_resource type="PackedScene" uid="uid://35f21vfxi5ur" path="res://BendPipeSection.tscn" id="3_lquwl"]
 
+[sub_resource type="Environment" id="Environment_abc123"]
+background_mode = 1
+background_color = Color(0.0962, 0.0962, 0.0962, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.45, 0.45, 0.5, 1)
+ambient_light_energy = 0.6
+
 [sub_resource type="BoxMesh" id="BoxMesh_0xm2m"]
 size = Vector3(1.2, 0.5, 2)
 
@@ -18,6 +25,7 @@ straight_section = ExtResource("2_1bvp3")
 bend_section = ExtResource("3_lquwl")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=2140795831]
+environment = SubResource("Environment_abc123")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1698670115]
 transform = Transform3D(0.95146346, 0, -0.30776176, 0, 1, 0, 0.30776176, 0, 0.95146346, 2.3548903, -1.2760048, 6.3048677)
