@@ -30,22 +30,77 @@ func _ready() -> void:
 	if left:  exits.append(left)
 	if right: exits.append(right)
 
+	# Simple trunk mesh for visibility (full blend mesh is a later step).
+	if mesh_instance:
+		var m := CylinderMesh.new()
+		m.top_radius = tube_radius
+		m.bottom_radius = tube_radius
+		m.height = trunk_length
+		m.radial_segments = PipeSection.RING_SEGMENTS
+		m.cap_top = false
+		m.cap_bottom = false
+		mesh_instance.mesh = m
+		mesh_instance.position = Vector3(0.0, 0.0, trunk_length * 0.5)
+
 	if Engine.is_editor_hint():
 		notify_property_list_changed()
 		return
 
+	if mesh_instance and mesh_instance.mesh:
+		mesh_instance.create_trimesh_collision()
+		await get_tree().process_frame
+		if mesh_instance.get_child_count() > 0:
+			var body := mesh_instance.get_child(0) as StaticBody3D
+			if body and body.get_child_count() > 0:
+				var shape := body.get_child(0) as CollisionShape3D
+				if shape and shape.shape is ConcavePolygonShape3D:
+					(shape.shape as ConcavePolygonShape3D).backface_collision = true
+
+# Centreline segments (local space). Each is [start, end].
+var _paths: Array = []
+
+func _build_paths() -> void:
+	_paths.clear()
+	# Trunk
+	_paths.append([Vector3.ZERO, Vector3(0.0, 0.0, trunk_length)])
+	# Branches
+	var a := deg_to_rad(branch_angle)
+	_paths.append([Vector3.ZERO, Vector3(-sin(a) * branch_length, 0.0, cos(a) * branch_length)])
+	_paths.append([Vector3.ZERO, Vector3( sin(a) * branch_length, 0.0, cos(a) * branch_length)])
+
+func _nearest_path_point(local_pos: Vector3) -> Dictionary:
+	# Returns {"path_idx", "point", "tangent"} for the closest centreline.
+	var best_dist := INF
+	var best_point := Vector3.ZERO
+	var best_tan := Vector3(0.0, 0.0, 1.0)
+	for p in _paths:
+		var s: Vector3 = p[0]
+		var e: Vector3 = p[1]
+		var seg := e - s
+		var seg_len := seg.length()
+		if seg_len < 1e-6:
+			continue
+		var t := clampf((local_pos - s).dot(seg) / (seg_len * seg_len), 0.0, 1.0)
+		var pt := s + seg * t
+		var d := local_pos.distance_to(pt)
+		if d < best_dist:
+			best_dist = d
+			best_point = pt
+			best_tan = seg.normalized()
+	return {"point": best_point, "tangent": best_tan, "dist": best_dist}
+
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
-	# Placeholder: treat the whole junction as a straight trunk.
-	var fwd := global_transform.basis.z
-	var to_pos := world_pos - entry.global_position
-	var along := clampf(to_pos.dot(fwd), 0.0, trunk_length)
+	var local_pos := to_local(world_pos)
+	_build_paths()
+	var info := _nearest_path_point(local_pos)
 	return {
-		"axis":   fwd,
-		"origin": entry.global_position + fwd * along,
+		"axis":   (global_transform.basis * info["tangent"]).normalized(),
+		"origin": to_global(info["point"]),
 		"radius": tube_radius,
 	}
 
 func contains_point(world_pos: Vector3) -> bool:
-	var local := to_local(world_pos)
-	return abs(local.z) < (trunk_length + branch_length) * 0.5 + 5.0 \
-		and Vector2(local.x, local.y).length() < tube_radius + 5.0
+	var local_pos := to_local(world_pos)
+	_build_paths()
+	var info := _nearest_path_point(local_pos)
+	return info["dist"] < tube_radius + 3.0
