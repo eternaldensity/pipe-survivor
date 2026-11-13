@@ -56,11 +56,11 @@ Deliverables (spec §6):
    blend length, `has_trunk`, selectable left/right branches.
 4. **[Done]** Centrelines first: `Curve3D` cubic Bezier per path; `get_tube_properties` uses
    `get_closest_offset`; exit markers at endpoints with matching orientation.
-5. **[Done]** Mesh: rings swept along each centreline, capped, then combined with a
-   `CSGCombiner3D` union. Flat mouth caps are stripped and the single resulting mesh is used for
-   rendering and trimesh collision. Internal walls and jagged intersection edges are gone;
-   branch tint comes from vertex colours. Future optimisation: cache/bake the union mesh and
-   reduce its triangle count.
+5. **[Done]** Mesh: trunk/branch `CSGCylinder3D` primitives combined with a `CSGCombiner3D`
+   union. Flat mouth and branch-start caps are stripped, normals flipped inward, and the single
+   resulting mesh drives both rendering and trimesh collision. Verified zero internal-wall
+   triangles and a drivable junction. Future optimisation: cache/bake the union mesh and reduce
+   its triangle count (currently ~530).
 6. **[Partial]** Branch identification: branches have distinct colours via material overrides.
    Still missing: the per-fragment Voronoi wall-colour shader for a blended mesh.
 7. **[Done]** Junction integrated into `main.gd`; harness drives through a branch.
