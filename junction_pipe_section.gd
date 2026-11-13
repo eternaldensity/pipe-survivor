@@ -116,6 +116,10 @@ func _build_meshes() -> void:
 		mesh_instance.mesh = m
 		mesh_instance.position = Vector3(0.0, 0.0, trunk_length * 0.5)
 		mesh_instance.basis = _make_basis(Vector3(0.0, 0.0, 1.0))
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.7, 0.7, 0.75)
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh_instance.material_override = mat
 
 	# Branches
 	var ang := deg_to_rad(branch_angle)
@@ -135,6 +139,10 @@ func _build_meshes() -> void:
 		bmi.mesh = bm
 		bmi.position = dir * (branch_length * 0.5)
 		bmi.basis = _make_basis(dir)
+		var bmat := StandardMaterial3D.new()
+		bmat.albedo_color = (Color(0.3, 0.6, 1.0) if i == 0 else Color(1.0, 0.5, 0.3))
+		bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		bmi.material_override = bmat
 		add_child(bmi)
 
 func _build_collisions() -> void:
