@@ -29,6 +29,7 @@ func _init() -> void:
 func _run_all() -> void:
 	await _test_driving()
 	await _test_steering()
+	await _test_branch()
 	await _test_properties()
 
 func _test_driving() -> void:
@@ -38,9 +39,11 @@ func _test_driving() -> void:
 	var nan_count := 0
 	var min_r := 1e9
 	var max_r := 0.0
+	var max_radius_error := 0.0
 	var seen: Array[String] = []
 	var last := ""
-	for i in range(6000):
+	var outside_frames := 0
+	for i in range(12000):
 		await process_frame
 		var v = main.get_node("Vehicle")
 		var net = main.get_node("PipeNetwork")
@@ -48,12 +51,21 @@ func _test_driving() -> void:
 		if sec == null:
 			_fail("driving: null section at frame %d" % i)
 			break
+		# Stop once the vehicle has driven past the end of the authored network.
+		if not sec.contains_point(v.global_position):
+			outside_frames += 1
+			if outside_frames >= 10 and seen.size() >= 8:
+				break
+			continue
+		outside_frames = 0
 		if sec.name != last:
 			seen.append(sec.name)
 			last = sec.name
 		var r : float = (v.global_position - v.tube_origin).length()
 		if r < min_r: min_r = r
 		if r > max_r: max_r = r
+		var err := absf(r - v.tube_radius)
+		if err > max_radius_error: max_radius_error = err
 		for c in [v.global_position.x, v.global_position.y, v.global_position.z,
 				  v.velocity.x, v.velocity.y, v.velocity.z,
 				  v.tube_axis.x, v.tube_axis.y, v.tube_axis.z]:
@@ -61,9 +73,9 @@ func _test_driving() -> void:
 				nan_count += 1
 	Input.action_release("ui_up")
 	_assert(nan_count == 0, "driving: NaN/INF detected (%d)" % nan_count)
-	_assert(seen.size() >= 4, "driving: too few sections traversed (%d)" % seen.size())
-	_assert(min_r > 5.0 and max_r < 15.0, "driving: radius out of range [%.2f, %.2f]" % [min_r, max_r])
-	print("driving: sections=%d min_r=%.3f max_r=%.3f nan=%d" % [seen.size(), min_r, max_r, nan_count])
+	_assert(seen.size() >= 8, "driving: too few sections traversed (%d)" % seen.size())
+	_assert(max_radius_error < 3.0, "driving: vehicle left tube wall (max radius error %.2f)" % max_radius_error)
+	print("driving: sections=%d min_r=%.3f max_r=%.3f max_radius_err=%.3f nan=%d" % [seen.size(), min_r, max_r, max_radius_error, nan_count])
 	main.queue_free()
 	await process_frame
 
@@ -74,6 +86,7 @@ func _test_steering() -> void:
 	var nan_count := 0
 	var min_r := 1e9
 	var max_r := 0.0
+	var max_radius_error := 0.0
 	for i in range(2000):
 		await process_frame
 		var v = main.get_node("Vehicle")
@@ -91,6 +104,8 @@ func _test_steering() -> void:
 		var r : float = (v.global_position - v.tube_origin).length()
 		if r < min_r: min_r = r
 		if r > max_r: max_r = r
+		var err := absf(r - v.tube_radius)
+		if err > max_radius_error: max_radius_error = err
 		for c in [v.global_position.x, v.global_position.y, v.global_position.z,
 				  v.velocity.x, v.velocity.y, v.velocity.z,
 				  v.tube_axis.x, v.tube_axis.y, v.tube_axis.z]:
@@ -100,8 +115,77 @@ func _test_steering() -> void:
 	Input.action_release("ui_left")
 	Input.action_release("ui_right")
 	_assert(nan_count == 0, "steering: NaN/INF detected (%d)" % nan_count)
-	_assert(min_r > 5.0 and max_r < 15.0, "steering: radius out of range [%.2f, %.2f]" % [min_r, max_r])
-	print("steering: min_r=%.3f max_r=%.3f nan=%d" % [min_r, max_r, nan_count])
+	_assert(max_radius_error < 3.0, "steering: vehicle left tube wall (max radius error %.2f)" % max_radius_error)
+	print("steering: min_r=%.3f max_r=%.3f max_radius_err=%.3f nan=%d" % [min_r, max_r, max_radius_error, nan_count])
+	main.queue_free()
+	await process_frame
+
+func _test_branch() -> void:
+	var main = load("res://main.tscn").instantiate()
+	root.add_child(main)
+	await process_frame
+	var net = main.get_node("PipeNetwork")
+	var junction: JunctionPipeSection = null
+	for s in net.sections:
+		if s is JunctionPipeSection:
+			junction = s
+			break
+	if junction == null:
+		_fail("branch: no junction in network")
+		main.queue_free()
+		await process_frame
+		return
+	junction._ensure_curves()
+	var curve: Curve3D = junction._curves[1]  # left branch
+	var tr := curve.sample_baked_with_rotation(curve.get_baked_length() * 0.7)
+	var tangent := (junction.global_transform.basis * (-tr.basis.z)).normalized()
+	var perp := tangent.cross(Vector3.UP).normalized()
+	if perp.length_squared() < 0.5:
+		perp = tangent.cross(Vector3.RIGHT).normalized()
+	var wall_nudge := perp * (junction.tube_radius * 0.9)
+	var v = main.get_node("Vehicle")
+	v.global_position = junction.to_global(tr.origin) + wall_nudge
+	v.global_transform.basis = Basis.looking_at(tangent, -perp)
+	# Teleport resets the network's sticky section so the first physics frame
+	# resolves against the junction/branch rather than the old section.
+	net.current_section = null
+	net.get_section_at(v.global_position)
+	Input.action_press("ui_up")
+	var nan_count := 0
+	var max_radius_error := 0.0
+	var branch_section_seen := false
+	var outside_frames := 0
+	for i in range(1500):
+		await process_frame
+		var sec = net.get_section_at(v.global_position)
+		if sec == null:
+			_fail("branch: null section at frame %d" % i)
+			break
+		if not sec.contains_point(v.global_position):
+			outside_frames += 1
+			if outside_frames >= 10 and branch_section_seen:
+				break
+			continue
+		outside_frames = 0
+		if sec == net.sections.back():
+			branch_section_seen = true
+		if i < 5:
+			continue  # let the teleported body settle before measuring
+		var r : float = (v.global_position - v.tube_origin).length()
+		var err := absf(r - v.tube_radius)
+		if err > max_radius_error: max_radius_error = err
+		for c in [v.global_position.x, v.global_position.y, v.global_position.z,
+				  v.velocity.x, v.velocity.y, v.velocity.z,
+				  v.tube_axis.x, v.tube_axis.y, v.tube_axis.z]:
+			if is_nan(c) or is_inf(c):
+				nan_count += 1
+	Input.action_release("ui_up")
+	_assert(nan_count == 0, "branch: NaN/INF detected (%d)" % nan_count)
+	# Slightly looser than the straight-line tests: the curved-junction -> straight
+	# branch seam can report a transient offset for a frame during hand-off.
+	_assert(max_radius_error < 4.0, "branch: vehicle left tube wall (max radius error %.2f)" % max_radius_error)
+	_assert(branch_section_seen, "branch: vehicle did not enter the attached branch section")
+	print("branch: entered=%s max_radius_err=%.3f nan=%d" % [branch_section_seen, max_radius_error, nan_count])
 	main.queue_free()
 	await process_frame
 
@@ -113,7 +197,6 @@ func _test_properties() -> void:
 	for s in net.sections:
 		if s is StraightPipeSection:
 			var ss := s as StraightPipeSection
-			var fwd := ss.global_transform.basis.z
 			for k in range(5):
 				var t := float(k) / 4.0
 				var wp := ss.entry.global_position + (ss.exit.global_position - ss.entry.global_position) * t
