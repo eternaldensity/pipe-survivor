@@ -116,9 +116,9 @@ func _build_meshes() -> void:
 
 	_ensure_curves()
 
-	# Trunk: swept along its curve.
+	# Trunk: swept along its curve, minus the parts inside the branches.
 	if mesh_instance:
-		mesh_instance.mesh = _build_tube_mesh(_curves[0], tube_radius)
+		mesh_instance.mesh = _build_tube_mesh(_curves[0], tube_radius, [_curves[1], _curves[2]])
 		mesh_instance.position = Vector3.ZERO
 		mesh_instance.basis = Basis.IDENTITY
 		var mat := StandardMaterial3D.new()
@@ -131,14 +131,15 @@ func _build_meshes() -> void:
 	for i in range(2):
 		var bmi := MeshInstance3D.new()
 		bmi.name = branch_names[i]
-		bmi.mesh = _build_tube_mesh(_curves[i + 1], tube_radius)
+		var other := _curves[2 - i]  # the opposite branch
+		bmi.mesh = _build_tube_mesh(_curves[i + 1], tube_radius, [_curves[0], other])
 		var bmat := StandardMaterial3D.new()
 		bmat.albedo_color = (Color(0.3, 0.6, 1.0) if i == 0 else Color(1.0, 0.5, 0.3))
 		bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		bmi.material_override = bmat
 		add_child(bmi)
 
-func _build_tube_mesh(curve: Curve3D, radius: float) -> ArrayMesh:
+func _build_tube_mesh(curve: Curve3D, radius: float, others: Array = []) -> ArrayMesh:
 	var baked_len := curve.get_baked_length()
 	var steps: int = max(8, int(baked_len / 5.0))
 	var ring_steps := PipeSection.RING_SEGMENTS
@@ -161,13 +162,30 @@ func _build_tube_mesh(curve: Curve3D, radius: float) -> ArrayMesh:
 			normals.append(-offset.normalized())
 			uvs.append(Vector2(u, v))
 
+	# Drop triangles that lie inside another tube of this junction. This turns
+	# the overlapping swept tubes into a single open union: the trunk wall gets
+	# a hole where a branch attaches, and branch walls stop at the trunk wall.
 	for i in range(steps):
 		for j in range(ring_steps):
 			var a := i * (ring_steps + 1) + j
 			var b := (i + 1) * (ring_steps + 1) + j
 			var c := (i + 1) * (ring_steps + 1) + j + 1
 			var d := i * (ring_steps + 1) + j + 1
-			indices.append_array([a, b, c, a, c, d])
+			var tris := [[a, b, c], [a, c, d]]
+			for tri in tris:
+				var p0: Vector3 = verts[tri[0]]
+				var p1: Vector3 = verts[tri[1]]
+				var p2: Vector3 = verts[tri[2]]
+				var centroid := (p0 + p1 + p2) / 3.0
+				var inside := false
+				for oc in others:
+					var off: float = oc.get_closest_offset(centroid)
+					var op: Vector3 = oc.sample_baked(off)
+					if centroid.distance_to(op) < radius - 0.75:
+						inside = true
+						break
+				if not inside:
+					indices.append_array(tri)
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
