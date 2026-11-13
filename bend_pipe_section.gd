@@ -210,10 +210,15 @@ func contains_point(world_pos: Vector3) -> bool:
 	var roll_basis := Basis(Vector3(0, 0, 1), roll)
 	var unrolled   := roll_basis.inverse() * local_pos
 	
-	var angle      := _get_arc_angle(unrolled)
-	if angle < -0.1 or angle > _angle_rad + 0.1:
+	var arc_centre := Vector3(_bend_radius, 0.0, 0.0)
+	var to_vehicle := unrolled - arc_centre
+	to_vehicle.y   = 0.0
+	# Raw (unclamped) angle so we can reject points beyond the arc ends
+	var raw_angle  := atan2(to_vehicle.z, -to_vehicle.x)
+	if raw_angle < -0.1 or raw_angle > _angle_rad + 0.1:
 		return false
 	
+	var angle      : float = clampf(raw_angle, 0.0, _angle_rad)
 	var arc_point  := Vector3(
 		_bend_radius * (1.0 - cos(angle)),
 		0.0,
