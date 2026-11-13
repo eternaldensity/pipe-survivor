@@ -30,7 +30,35 @@ func _ready() -> void:
 	if left:  exits.append(left)
 	if right: exits.append(right)
 
-	# Simple trunk mesh for visibility (full blend mesh is a later step).
+	# Build trunk + branch cylinder meshes for visibility/collision.
+	_build_meshes()
+
+	if Engine.is_editor_hint():
+		notify_property_list_changed()
+		return
+
+	await _build_collisions()
+
+# Centreline segments (local space). Each is [start, end].
+var _paths: Array = []
+
+func _build_meshes() -> void:
+	# Clear any previously generated branch mesh instances (editor re-runs).
+	for c in get_children():
+		if c is MeshInstance3D and c.name.begins_with("BranchMesh"):
+			c.queue_free()
+
+	# Helper: basis with Y axis along dir.
+	var make_basis := func(dir: Vector3) -> Basis:
+		var y := dir.normalized()
+		var x := Vector3.UP.cross(y)
+		if x.length() < 1e-4:
+			x = Vector3.RIGHT.cross(y)
+		x = x.normalized()
+		var z := x.cross(y).normalized()
+		return Basis(x, y, z)
+
+	# Trunk
 	if mesh_instance:
 		var m := CylinderMesh.new()
 		m.top_radius = tube_radius
@@ -41,23 +69,50 @@ func _ready() -> void:
 		m.cap_bottom = false
 		mesh_instance.mesh = m
 		mesh_instance.position = Vector3(0.0, 0.0, trunk_length * 0.5)
+		mesh_instance.basis = make_basis.call(Vector3(0.0, 0.0, 1.0))
 
-	if Engine.is_editor_hint():
-		notify_property_list_changed()
-		return
+	# Branches
+	var a := deg_to_rad(branch_angle)
+	var branch_dirs := [Vector3(-sin(a), 0.0, cos(a)), Vector3(sin(a), 0.0, cos(a))]
+	var branch_names := ["BranchMeshLeft", "BranchMeshRight"]
+	for i in range(2):
+		var dir: Vector3 = branch_dirs[i]
+		var bmi := MeshInstance3D.new()
+		bmi.name = branch_names[i]
+		var bm := CylinderMesh.new()
+		bm.top_radius = tube_radius
+		bm.bottom_radius = tube_radius
+		bm.height = branch_length
+		bm.radial_segments = PipeSection.RING_SEGMENTS
+		bm.cap_top = false
+		bm.cap_bottom = false
+		bmi.mesh = bm
+		bmi.position = dir * (branch_length * 0.5)
+		bmi.basis = make_basis.call(dir)
+		add_child(bmi)
 
-	if mesh_instance and mesh_instance.mesh:
-		mesh_instance.create_trimesh_collision()
-		await get_tree().process_frame
-		if mesh_instance.get_child_count() > 0:
-			var body := mesh_instance.get_child(0) as StaticBody3D
-			if body and body.get_child_count() > 0:
-				var shape := body.get_child(0) as CollisionShape3D
-				if shape and shape.shape is ConcavePolygonShape3D:
-					(shape.shape as ConcavePolygonShape3D).backface_collision = true
+func _build_collisions() -> void:
+	for mi in [mesh_instance] + _branch_meshes():
+		if mi == null or mi.mesh == null:
+			continue
+		if mi.get_child_count() == 0:
+			mi.create_trimesh_collision()
+	await get_tree().process_frame
+	for mi in [mesh_instance] + _branch_meshes():
+		if mi == null or mi.get_child_count() == 0:
+			continue
+		var body := mi.get_child(0) as StaticBody3D
+		if body and body.get_child_count() > 0:
+			var shape := body.get_child(0) as CollisionShape3D
+			if shape and shape.shape is ConcavePolygonShape3D:
+				(shape.shape as ConcavePolygonShape3D).backface_collision = true
 
-# Centreline segments (local space). Each is [start, end].
-var _paths: Array = []
+func _branch_meshes() -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for c in get_children():
+		if c is MeshInstance3D and c.name.begins_with("BranchMesh"):
+			out.append(c)
+	return out
 
 func _build_paths() -> void:
 	_paths.clear()
