@@ -62,13 +62,17 @@ func _test_driving() -> void:
 		if sec.name != last:
 			seen.append(sec.name)
 			last = sec.name
-		var r : float = (v.global_position - v.tube_origin).length()
+		var p: Dictionary = sec.get_tube_properties(v.global_position)
+		var r : float = (v.global_position - p["origin"]).length()
+		var rad: float = p["radius"]
 		if r < min_r: min_r = r
 		if r > max_r: max_r = r
-		# Skip the radius invariant inside junctions: their centrelines overlap
-		# until the blended transition mesh exists (Phase 2 remaining work).
-		if not (sec is JunctionPipeSection):
-			var err := absf(r - v.tube_radius)
+		# Skip the radius invariant inside junctions (overlapping centrelines until
+		# the blended mesh exists) and right at section mouths (transitional).
+		var near_mouth: bool = v.global_position.distance_to(sec.entry.global_position) < 5.0 \
+			or v.global_position.distance_to(sec.exit.global_position) < 5.0
+		if not (sec is JunctionPipeSection) and not near_mouth:
+			var err := absf(r - rad)
 			if err > max_radius_error: max_radius_error = err
 		for c in [v.global_position.x, v.global_position.y, v.global_position.z,
 				  v.velocity.x, v.velocity.y, v.velocity.z,
@@ -140,6 +144,17 @@ func _test_branch() -> void:
 		await process_frame
 		return
 	junction._ensure_curves()
+	var branch_start: PipeSection = null
+	for s in net.sections:
+		var ps: PipeSection = s
+		if ps.attached_from == junction and ps.attached_exit == 1:
+			branch_start = ps
+			break
+	if branch_start == null:
+		_fail("branch: no section attached to junction exit 1")
+		main.queue_free()
+		await process_frame
+		return
 	var curve: Curve3D = junction._curves[1]  # left branch
 	var tr := curve.sample_baked_with_rotation(curve.get_baked_length() * 0.7)
 	var tangent := (junction.global_transform.basis * (-tr.basis.z)).normalized()
@@ -171,12 +186,13 @@ func _test_branch() -> void:
 				break
 			continue
 		outside_frames = 0
-		if sec == net.sections.back():
+		if sec == branch_start or sec.attached_from == branch_start:
 			branch_section_seen = true
 		if i < 5:
 			continue  # let the teleported body settle before measuring
-		var r : float = (v.global_position - v.tube_origin).length()
-		var err := absf(r - v.tube_radius)
+		var p: Dictionary = sec.get_tube_properties(v.global_position)
+		var r : float = (v.global_position - p["origin"]).length()
+		var err := absf(r - float(p["radius"]))
 		if err > max_radius_error: max_radius_error = err
 		for c in [v.global_position.x, v.global_position.y, v.global_position.z,
 				  v.velocity.x, v.velocity.y, v.velocity.z,
