@@ -12,6 +12,14 @@ extends PipeSection
 
 # Centreline curves (local space).
 var _curves: Array[Curve3D] = []
+var _curve_key := Vector3(-1.0, -1.0, -1.0)  # trunk_length, branch_length, branch_angle
+
+func _ensure_curves() -> void:
+	var key := Vector3(trunk_length, branch_length, branch_angle)
+	if _curves.size() == 3 and key == _curve_key:
+		return
+	_curve_key = key
+	_build_curves()
 
 func _ready() -> void:
 	# Entry at origin; trunk continues straight; two branches peel off symmetrically.
@@ -55,7 +63,7 @@ func _build_curves() -> void:
 		var end := d * branch_length
 		var c := Curve3D.new()
 		c.add_point(Vector3.ZERO, Vector3.ZERO, Vector3(0.0, 0.0, branch_length * 0.4))
-		c.add_point(end, -dir * (branch_length * 0.4), Vector3.ZERO)
+		c.add_point(end, -d * (branch_length * 0.4), Vector3.ZERO)
 		_curves.append(c)
 
 func _nearest_curve_point(local_pos: Vector3) -> Dictionary:
@@ -75,7 +83,7 @@ func _nearest_curve_point(local_pos: Vector3) -> Dictionary:
 
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var local_pos := to_local(world_pos)
-	_build_curves()
+	_ensure_curves()
 	var info := _nearest_curve_point(local_pos)
 	return {
 		"axis":   (global_transform.basis * info["tangent"]).normalized(),
@@ -85,65 +93,82 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 
 func contains_point(world_pos: Vector3) -> bool:
 	var local_pos := to_local(world_pos)
-	_build_curves()
+	_ensure_curves()
 	var info := _nearest_curve_point(local_pos)
 	return info["dist"] < tube_radius + 3.0
 
-func _make_basis(dir: Vector3) -> Basis:
-	var y := dir.normalized()
-	var x := Vector3.UP.cross(y)
-	if x.length() < 1e-4:
-		x = Vector3.RIGHT.cross(y)
-	x = x.normalized()
-	var z := x.cross(y).normalized()
-	return Basis(x, y, z)
-
 func _build_meshes() -> void:
-	# Clear previously generated branch mesh instances.
+	# Clear previously generated branch mesh instances immediately, otherwise
+	# editor re-runs can briefly duplicate names/geometry.
 	for c in get_children():
 		if c is MeshInstance3D and c.name.begins_with("BranchMesh"):
-			c.queue_free()
+			remove_child(c)
+			c.free()
 
-	# Trunk
+	_ensure_curves()
+
+	# Trunk: swept along its curve.
 	if mesh_instance:
-		var m := CylinderMesh.new()
-		m.top_radius = tube_radius
-		m.bottom_radius = tube_radius
-		m.height = trunk_length
-		m.radial_segments = PipeSection.RING_SEGMENTS
-		m.cap_top = false
-		m.cap_bottom = false
-		mesh_instance.mesh = m
-		mesh_instance.position = Vector3(0.0, 0.0, trunk_length * 0.5)
-		mesh_instance.basis = _make_basis(Vector3(0.0, 0.0, 1.0))
+		mesh_instance.mesh = _build_tube_mesh(_curves[0], tube_radius)
+		mesh_instance.position = Vector3.ZERO
+		mesh_instance.basis = Basis.IDENTITY
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = Color(0.7, 0.7, 0.75)
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		mesh_instance.material_override = mat
 
-	# Branches
-	var ang := deg_to_rad(branch_angle)
-	var branch_dirs := [Vector3(-sin(ang), 0.0, cos(ang)), Vector3(sin(ang), 0.0, cos(ang))]
+	# Branches: swept along their curves.
 	var branch_names := ["BranchMeshLeft", "BranchMeshRight"]
 	for i in range(2):
-		var dir: Vector3 = branch_dirs[i]
 		var bmi := MeshInstance3D.new()
 		bmi.name = branch_names[i]
-		var bm := CylinderMesh.new()
-		bm.top_radius = tube_radius
-		bm.bottom_radius = tube_radius
-		bm.height = branch_length
-		bm.radial_segments = PipeSection.RING_SEGMENTS
-		bm.cap_top = false
-		bm.cap_bottom = false
-		bmi.mesh = bm
-		bmi.position = dir * (branch_length * 0.5)
-		bmi.basis = _make_basis(dir)
+		bmi.mesh = _build_tube_mesh(_curves[i + 1], tube_radius)
 		var bmat := StandardMaterial3D.new()
 		bmat.albedo_color = (Color(0.3, 0.6, 1.0) if i == 0 else Color(1.0, 0.5, 0.3))
 		bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		bmi.material_override = bmat
 		add_child(bmi)
+
+func _build_tube_mesh(curve: Curve3D, radius: float) -> ArrayMesh:
+	var baked_len := curve.get_baked_length()
+	var steps: int = max(8, int(baked_len / 5.0))
+	var ring_steps := PipeSection.RING_SEGMENTS
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+
+	for i in range(steps + 1):
+		var u := float(i) / float(steps)
+		var tr := curve.sample_baked_with_rotation(u * baked_len)
+		var centre := tr.origin
+		var bx := tr.basis.x
+		var by := tr.basis.y
+		for j in range(ring_steps + 1):
+			var v := float(j) / float(ring_steps)
+			var ring_a := v * TAU
+			var offset := (bx * cos(ring_a) + by * sin(ring_a))
+			verts.append(centre + offset * radius)
+			normals.append(-offset.normalized())
+			uvs.append(Vector2(u, v))
+
+	for i in range(steps):
+		for j in range(ring_steps):
+			var a := i * (ring_steps + 1) + j
+			var b := (i + 1) * (ring_steps + 1) + j
+			var c := (i + 1) * (ring_steps + 1) + j + 1
+			var d := i * (ring_steps + 1) + j + 1
+			indices.append_array([a, b, c, a, c, d])
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 func _build_collisions() -> void:
 	var meshes: Array[MeshInstance3D] = [mesh_instance]
@@ -164,10 +189,3 @@ func _build_collisions() -> void:
 			var shape := body.get_child(0) as CollisionShape3D
 			if shape and shape.shape is ConcavePolygonShape3D:
 				(shape.shape as ConcavePolygonShape3D).backface_collision = true
-
-func _branch_meshes() -> Array[MeshInstance3D]:
-	var out: Array[MeshInstance3D] = []
-	for c in get_children():
-		if c is MeshInstance3D and c.name.begins_with("BranchMesh"):
-			out.append(c)
-	return out
