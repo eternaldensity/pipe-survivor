@@ -5,7 +5,7 @@ extends Node3D
 var sections : Array[PipeSection] = []
 var current_section : PipeSection = null
 
-func add_section(packed: PackedScene, props: Dictionary = {}) -> PipeSection:
+func add_section(packed: PackedScene, props: Dictionary = {}, from_section: PipeSection = null, from_exit: int = 0) -> PipeSection:
 	var section := packed.instantiate() as PipeSection
 	
 	# Apply overrides before _ready runs positioning
@@ -13,15 +13,14 @@ func add_section(packed: PackedScene, props: Dictionary = {}) -> PipeSection:
 		section.set(key, props[key])
 	add_child(section)
 
-	if sections.is_empty():
+	if sections.is_empty() and from_section == null:
 		# First section — place at world origin, no alignment needed
 		section.global_transform = Transform3D.IDENTITY
 	else:
-		# Align new section's Entry onto previous section's Exit.
-		# We want: new_section.entry.global_transform == prev.exit.global_transform
-		# So:      new_section.global_transform = exit_T * entry_local_T.inverse()
-		var prev:PipeSection = sections.back()
-		var exit_T     := prev.exit.global_transform
+		var prev: PipeSection = from_section if from_section != null else sections.back()
+		# Align new section's Entry onto the chosen exit of the previous section.
+		var exit_marker: Marker3D = prev.exits[from_exit] if from_exit < prev.exits.size() else prev.exit
+		var exit_T     := exit_marker.global_transform
 		var entry_local := section.entry.transform   # local to the section
 		section.global_transform = exit_T * entry_local.affine_inverse()
 

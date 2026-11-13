@@ -11,6 +11,7 @@ func _ready() -> void:
 	# Position markers to match actual length
 	entry.position = Vector3(0.0, 0.0, -length / 2.0)
 	exit.position  = Vector3(0.0, 0.0,  length / 2.0)
+	exits = [exit]
 	
 	var m := CylinderMesh.new()
 	m.top_radius    = exit_radius

@@ -24,6 +24,7 @@ func _ready() -> void:
 	
 	_build_mesh()
 	_place_markers()
+	exits = [exit]
 	if Engine.is_editor_hint():
 		notify_property_list_changed()
 		return

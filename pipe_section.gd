@@ -6,6 +6,10 @@ extends Node3D
 @onready var entry : Marker3D = $Entry
 @onready var exit  : Marker3D = $Exit
 
+# Exit markers. Single-exit sections populate this with [exit] in _ready;
+# junctions populate it with all of their exit markers.
+var exits : Array[Marker3D] = []
+
 const RING_SEGMENTS := 32
 
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
