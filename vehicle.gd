@@ -1,39 +1,40 @@
 extends CharacterBody3D
 
-const GRAVITY      := 25.0
-const SPEED        := 20.0
-const ACCELERATION := 50.0
-const FRICTION     := 35.0
-const TURN_SPEED   := 2.0   # radians per second
-const STEER_ACCEL  := 6.0   # steering rate ramp (units/sec)
+@export var gravity      := 25.0
+@export var speed        := 20.0
+@export var acceleration := 50.0
+@export var friction     := 35.0
+@export var turn_speed   := 2.0   # radians per second
+@export var steer_accel  := 6.0   # steering rate ramp (units/sec)
 
 var tube_origin     := Vector3.ZERO
 var tube_axis       := Vector3(0.0, 0.0, 1.0)
+var tube_radius     := 10.0
 var steering_amount := 0.0
 
 @export var network : PipeNetwork
 
 
-func _get_outward() -> Vector3:
-	var section := network.get_section_at(global_position)
-	if section == null:
-		return Vector3.UP  # fallback
-	var props  := section.get_tube_properties(global_position)
-	tube_axis   = props["axis"]
-	tube_origin = props["origin"]
-	
-	var to_self := global_position - tube_origin
-	var radial  := to_self - to_self.dot(tube_axis) * tube_axis
+func _outward_from(props: Dictionary) -> Vector3:
+	var axis: Vector3 = props["axis"]
+	var origin: Vector3 = props["origin"]
+	var to_self: Vector3 = global_position - origin
+	var radial: Vector3 = to_self - to_self.dot(axis) * axis
 	if radial.length_squared() < 1e-4:
-		return tube_axis.cross(Vector3.UP).normalized()
+		return axis.cross(Vector3.UP).normalized()
 	return radial.normalized()
 
 
 func _physics_process(delta: float) -> void:
 	var section := network.get_section_at(global_position)
+	if section == null:
+		return
 	var props   := section.get_tube_properties(global_position)
+	tube_axis   = props["axis"]
+	tube_origin = props["origin"]
+	tube_radius = props["radius"]
 
-	var outward := _get_outward()
+	var outward := _outward_from(props)
 	var inward  := -outward
 	up_direction = inward
 
@@ -42,14 +43,14 @@ func _physics_process(delta: float) -> void:
 	# vehicle, and from then on forward always means "where I'm pointing"
 	# Steering input ramps smoothly instead of being all-or-nothing.
 	var target_turn := Input.get_axis("ui_left", "ui_right")
-	steering_amount = move_toward(steering_amount, target_turn, STEER_ACCEL * delta)
+	steering_amount = move_toward(steering_amount, target_turn, steer_accel * delta)
 	if abs(steering_amount) > 0.001:
-		var steer := Basis(inward, -steering_amount * TURN_SPEED * delta)
+		var steer := Basis(inward, -steering_amount * turn_speed * delta)
 		global_transform.basis = steer * global_transform.basis
 
 	# ── Gravity ───────────────────────────────────────────────────────────
 	if not is_on_floor():
-		velocity += outward * GRAVITY * delta
+		velocity += outward * gravity * delta
 
 	# ── Centripetal force ─────────────────────────────────────────────────
 	# When spiraling, circumferential velocity requires centripetal
@@ -61,8 +62,8 @@ func _physics_process(delta: float) -> void:
 	var circ_vel    := velocity - velocity.dot(tube_axis) * tube_axis \
 								- velocity.dot(outward)   * outward
 	var to_self     := global_position - tube_origin
-	var tube_radius := (to_self - tube_axis * to_self.dot(tube_axis)).length()
-	var centripetal:float = circ_vel.length_squared() / max(tube_radius, 0.1)
+	var radial_dist := (to_self - tube_axis * to_self.dot(tube_axis)).length()
+	var centripetal:float = circ_vel.length_squared() / max(radial_dist, 0.1)
 	velocity += outward * centripetal * delta
 
 	# ── Drive in the direction the vehicle is facing ──────────────────────
@@ -79,9 +80,9 @@ func _physics_process(delta: float) -> void:
 
 	if abs(throttle) > 0.001:
 		surface_vel = surface_vel.move_toward(
-				vehicle_fwd * throttle * SPEED, ACCELERATION * delta)
+				vehicle_fwd * throttle * speed, acceleration * delta)
 	else:
-		surface_vel = surface_vel.move_toward(Vector3.ZERO, FRICTION * delta)
+		surface_vel = surface_vel.move_toward(Vector3.ZERO, friction * delta)
 
 	velocity = surface_vel + radial_vel
 
