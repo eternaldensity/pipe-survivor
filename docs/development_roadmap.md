@@ -51,9 +51,9 @@ Deliverables (spec §6):
    and `contains_point` updated.
 2. **[Done]** `PipeNetwork.add_section(packed, props, from_section, from_exit)`; branch
    attachment no longer assumes `sections.back()`.
-3. **[Partial]** `JunctionPipeSection`: radius, trunk length, branch angle, branch length
-   exports; Y-split with trunk + two branches. Still missing: blend length, `has_trunk`,
-   selectable left/right branches, trident topology.
+3. **[Partial]** `JunctionPipeSection`: radius, trunk length, branch angle, branch length,
+   and decision-offset exports; Y-split with trunk + two branches (trident). Still missing:
+   blend length, `has_trunk`, selectable left/right branches.
 4. **[Done]** Centrelines first: `Curve3D` cubic Bezier per path; `get_tube_properties` uses
    `get_closest_offset`; exit markers at endpoints with matching orientation.
 5. **[Partial]** Mesh: rings swept along each centreline with trimesh + backface collision.
@@ -63,7 +63,8 @@ Deliverables (spec §6):
 7. **[Done]** Junction integrated into `main.gd`; harness drives through a branch.
 
 **Exit criteria:** A junction scene loads, vehicle can choose either branch, snapping/collision
-valid, `tests/run.sh` extended with a junction traversal case passes.
+valid, `tests/run.sh` extended with a junction traversal case passes. Seam radius continuity is
+enforced by the harness (the wide test section tapers back to the junction radius).
 
 ---
 
