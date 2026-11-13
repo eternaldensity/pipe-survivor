@@ -19,16 +19,7 @@ func _ready() -> void:
 	m.radial_segments = PipeSection.RING_SEGMENTS
 	m.cap_top       = false
 	m.cap_bottom    = false
-
-	# CylinderMesh normals point outward; the vehicle views the pipe from the
-	# inside, so flip them to point inward for consistent lighting with bends.
-	var st := SurfaceTool.new()
-	st.create_from(m, 0)
-	# Regenerate normals pointing inward (opposite the default outward ones).
-	st.generate_normals(true)
-	var am := st.commit()
-	mesh_instance.mesh = am
-
+	mesh_instance.mesh = m	
 	mesh_instance.create_trimesh_collision()
 	# this auto-generates a StaticBody3D with correct collision as a sibling
 	await get_tree().process_frame  # let the child node appear
