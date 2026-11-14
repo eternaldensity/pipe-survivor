@@ -14,6 +14,9 @@ var tube_radius     := 10.0
 var steering_amount := 0.0
 var rest_zone_inside := false
 
+var _spell_cooldown := 0.0
+const SPELL_COOLDOWN := 2.0
+
 var _camera        : Camera3D = null
 var _cam_pos       := Vector3(0.0, 1.5, 2.5)
 var _cam_basis     := Basis.IDENTITY
@@ -116,6 +119,23 @@ func _physics_process(delta: float) -> void:
 		surface_vel = surface_vel.move_toward(Vector3.ZERO, friction * delta)
 
 	velocity = surface_vel + radial_vel
+
+	# ── Spell casting ─────────────────────────────────────────────────────
+	_spell_cooldown = maxf(0.0, _spell_cooldown - delta)
+	if Input.is_action_just_pressed("ui_accept") and _spell_cooldown <= 0.0:
+		_spell_cooldown = SPELL_COOLDOWN
+		var zone := SpellZone.new()
+		var fwd := -global_transform.basis.z
+		fwd = fwd - fwd.dot(outward) * outward
+		if fwd.length_squared() > 1e-4:
+			fwd = fwd.normalized()
+		else:
+			fwd = tube_axis
+		zone.zone_centre = global_position + fwd * 20.0
+		var parent := get_parent()
+		if parent:
+			parent.add_child(zone)
+			zone.global_position = zone.zone_centre
 
 	# ── Rest zone detection ───────────────────────────────────────────────
 	var in_rest := false
