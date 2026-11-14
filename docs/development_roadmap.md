@@ -34,9 +34,11 @@ Deliverables:
    `steer_accel` are now exports. A speed HUD readout is still missing.
 4. **[Partial]** Lighting: ambient world environment added; per-section emissive/area lights
    and `AreaLight3D` rest-zone lighting still pending.
-5. **[Done]** Resolve half-lit normals: straight pipe normals are now negated from the
-   CylinderMesh's outward normals, producing inward-facing normals for correct interior
-   lighting. The bend mesh already used inward normals. Both now agree.
+5. **[Done]** Resolve half-lit normals: straight and bend pipes now use back-face culling
+   (CULL_BACK) with inward-facing normals, so only the interior surface renders with
+   correct lighting. Previously cull was disabled (both sides rendered), causing the
+   outside faces to show through and create the half-lit effect. The junction shader
+   also uses CULL_BACK.
 
 **Exit criteria:** A playtester can drive the full network and report "feels good"; no
 half-lit surfaces; `tests/run.sh` still green.
