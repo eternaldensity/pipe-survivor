@@ -34,6 +34,14 @@ func _ready() -> void:
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh_instance.mesh = am
 
+	# Use back-face culling so only the inside (inward normals) renders.
+	# This prevents the outside faces from showing through and causing
+	# the half-lit effect.
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.6462178, 0.9540631, 0.9395212, 1)
+	mat.cull_mode = BaseMaterial3D.CULL_BACK
+	mesh_instance.material_override = mat
+
 	mesh_instance.create_trimesh_collision()
 	# this auto-generates a StaticBody3D with correct collision as a child
 	await get_tree().process_frame  # let the child node appear

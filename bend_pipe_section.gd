@@ -126,6 +126,12 @@ func _build_mesh() -> void:
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh_instance.mesh = mesh
 
+	# Use back-face culling so only the inside (inward normals) renders.
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.6462178, 0.9540631, 0.9395212, 1)
+	mat.cull_mode = BaseMaterial3D.CULL_BACK
+	mesh_instance.material_override = mat
+
 
 func _build_collision() -> void:
 	# Remove any previously generated collision children

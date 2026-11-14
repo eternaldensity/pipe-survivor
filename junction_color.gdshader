@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_disabled;
+render_mode cull_back;
 
 // Branch centreline start (decision point) and direction for each branch.
 // Index 0 = trunk, 1 = left, 2 = right.
