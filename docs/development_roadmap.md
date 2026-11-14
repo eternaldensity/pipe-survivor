@@ -44,6 +44,11 @@ half-lit surfaces; `tests/run.sh` still green.
 
 ## Phase 2 — Junctions (the big architectural step)
 
+**Status:** Core junction system is complete. Exit-branch, Y-split, and trident topologies
+are supported via toggles. Centreline-based tube properties, CSG union mesh with per-fragment
+wall colours, seam validation, and branch driving all work and are covered by the harness.
+Remaining polish: `has_trunk`/branch selection UI, cache persistence to disk.
+
 **Goal:** Turn the linear chain into a tree so routing decisions exist.
 
 Deliverables (spec §6):
