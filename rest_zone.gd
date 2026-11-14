@@ -16,7 +16,7 @@ func _ready() -> void:
 	if mesh_instance:
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = Color(0.3, 0.8, 0.4)
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mat.cull_mode = BaseMaterial3D.CULL_BACK
 		mesh_instance.material_override = mat
 
 	# Area3D trigger for UI detection.

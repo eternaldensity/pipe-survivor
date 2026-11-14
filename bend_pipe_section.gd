@@ -112,8 +112,9 @@ func _build_mesh() -> void:
 			var c := (i + 1) * (ring_steps + 1) + j + 1
 			var d := i       * (ring_steps + 1) + j + 1
 			
-			# Winding order: inward-facing normals need CW winding
-			indices.append_array([a, b, c, a, c, d])
+			# Winding order: flipped so the inside surface is the front face
+			# (matches inward normals with CULL_BACK).
+			indices.append_array([a, c, b, a, d, c])
 	
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)

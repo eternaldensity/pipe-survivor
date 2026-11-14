@@ -30,13 +30,23 @@ func _ready() -> void:
 	for i in range(normals.size()):
 		normals[i] = -normals[i]
 	arrays[Mesh.ARRAY_NORMAL] = normals
+
+	# Flip winding order so the inside surface becomes the front face.
+	# Without this, CULL_BACK would cull the inside (back face) and show
+	# nothing, because the original CylinderMesh winding marks the outside
+	# as the front face.
+	var idx := arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+	for i in range(0, idx.size(), 3):
+		var tmp := idx[i + 1]
+		idx[i + 1] = idx[i + 2]
+		idx[i + 2] = tmp
+	arrays[Mesh.ARRAY_INDEX] = idx
+
 	var am := ArrayMesh.new()
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh_instance.mesh = am
 
-	# Use back-face culling so only the inside (inward normals) renders.
-	# This prevents the outside faces from showing through and causing
-	# the half-lit effect.
+	# Back-face culling: only the inside (now front face) renders.
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.6462178, 0.9540631, 0.9395212, 1)
 	mat.cull_mode = BaseMaterial3D.CULL_BACK
