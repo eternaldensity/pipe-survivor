@@ -100,8 +100,10 @@ still pending.
 Deliverables:
 1. **[Done]** Rest-zone structure scene (wide chamber with trigger volume).
 2. **[Done]** Vehicle slows on entry; "REST ZONE" label appears.
-3. **[Partial]** Crafting UI overlay: presets, parameter sliders, and attractor preview.
-   Full sigil preview integration pending.
+3. **[Done]** Crafting UI overlay: presets, parameter sliders, and attractor preview.
+   Sliders are connected to the vehicle's spell params; selecting a preset updates
+   both the sliders and the vehicle's cast parameters. Full sigil preview integration
+   in the UI (currently renders above vehicle) is still pending.
 4. **[Partial]** Signage: 3D sign with text and coloured indicator. Full iconography using
    attractor sigil vocabulary and branch colours still pending.
 
