@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://enemyvehicle001"]
+
+[ext_resource type="Script" path="res://enemy_vehicle.gd" id="1_ev"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_ev"]
+size = Vector3(0.8, 0.4, 1.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ev"]
+size = Vector3(0.8, 0.4, 1.6)
+
+[node name="EnemyVehicle" type="CharacterBody3D"]
+script = ExtResource("1_ev")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_ev")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_ev")

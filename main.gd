@@ -69,3 +69,12 @@ func _ready() -> void:
 	var crafting_ui = crafting_ui_scene.instantiate()
 	add_child(crafting_ui)
 	crafting_ui.bind_vehicle($Vehicle)
+
+	# Phase 5: Enemy spawner.
+	var spawner = EnemySpawner.new()
+	spawner.enemy_scene = load("res://EnemyVehicle.tscn")
+	spawner.network = network
+	spawner.target = $Vehicle
+	spawner.spawn_interval = 4.0
+	spawner.max_enemies = 6
+	add_child(spawner)
