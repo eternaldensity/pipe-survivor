@@ -72,8 +72,8 @@ func _test_driving() -> void:
 		var near_mouth: bool = v.global_position.distance_to(sec.entry.global_position) < 5.0 \
 			or v.global_position.distance_to(sec.exit.global_position) < 5.0
 		if not (sec is JunctionPipeSection) and not near_mouth:
-			var err := absf(r - rad)
-			if err > max_radius_error: max_radius_error = err
+			var outside := r - rad
+			if outside > max_radius_error: max_radius_error = outside
 		for c in [v.global_position.x, v.global_position.y, v.global_position.z,
 				  v.velocity.x, v.velocity.y, v.velocity.z,
 				  v.tube_axis.x, v.tube_axis.y, v.tube_axis.z]:
@@ -109,11 +109,13 @@ func _test_steering() -> void:
 		if sec == null:
 			_fail("steering: null section at frame %d" % i)
 			break
-		var r : float = (v.global_position - v.tube_origin).length()
+		var p: Dictionary = sec.get_tube_properties(v.global_position)
+		var r : float = (v.global_position - p["origin"]).length()
+		var rad: float = p["radius"]
 		if r < min_r: min_r = r
 		if r > max_r: max_r = r
-		var err := absf(r - v.tube_radius)
-		if err > max_radius_error: max_radius_error = err
+		var outside := r - rad
+		if outside > max_radius_error: max_radius_error = outside
 		for c in [v.global_position.x, v.global_position.y, v.global_position.z,
 				  v.velocity.x, v.velocity.y, v.velocity.z,
 				  v.tube_axis.x, v.tube_axis.y, v.tube_axis.z]:
