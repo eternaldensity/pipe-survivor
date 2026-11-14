@@ -131,7 +131,7 @@ func _test_steering() -> void:
 func _test_branch() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	for i in range(5): await process_frame
+	for i in range(10): await process_frame
 	var net = main.get_node("PipeNetwork")
 	var junction: JunctionPipeSection = null
 	for s in net.sections:

@@ -23,6 +23,7 @@ var _cam_basis     := Basis.IDENTITY
 var _cam_ready     := false
 var _speed_label   : Label3D = null
 var _rest_label    : Label3D = null
+var _attractor_preview : AttractorPreview = null
 
 @export var network : PipeNetwork
 
@@ -42,6 +43,11 @@ func _ready() -> void:
 	_rest_label.text = "REST ZONE"
 	_rest_label.visible = false
 	add_child(_rest_label)
+
+	_attractor_preview = AttractorPreview.new()
+	_attractor_preview.visible = false
+	_attractor_preview.position = Vector3(0.0, 0.0, -5.0)
+	add_child(_attractor_preview)
 	add_to_group("vehicles")
 
 
@@ -164,6 +170,10 @@ func _process(delta: float) -> void:
 		_speed_label.text = "speed %.1f%s" % [spd, " (REST)" if rest_zone_inside else ""]
 	if _rest_label:
 		_rest_label.visible = rest_zone_inside
+	if _attractor_preview:
+		_attractor_preview.visible = rest_zone_inside
+		if rest_zone_inside:
+			_attractor_preview.update_preview()
 	if _camera == null:
 		return
 	# Smooth camera: lag behind the vehicle, look slightly ahead along the

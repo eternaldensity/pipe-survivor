@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://attractorpreview001"]
+
+[ext_resource type="Script" path="res://attractor_preview.gd" id="1_ap"]
+
+[node name="AttractorPreview" type="MeshInstance3D"]
+script = ExtResource("1_ap")
