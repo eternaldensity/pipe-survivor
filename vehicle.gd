@@ -1,3 +1,4 @@
+class_name Vehicle
 extends CharacterBody3D
 
 @export var gravity      := 25.0
@@ -11,16 +12,34 @@ var tube_origin     := Vector3.ZERO
 var tube_axis       := Vector3(0.0, 0.0, 1.0)
 var tube_radius     := 10.0
 var steering_amount := 0.0
+var rest_zone_inside := false
 
 var _camera        : Camera3D = null
 var _cam_pos       := Vector3(0.0, 1.5, 2.5)
 var _cam_basis     := Basis.IDENTITY
 var _cam_ready     := false
+var _speed_label   : Label3D = null
+var _rest_label    : Label3D = null
 
 @export var network : PipeNetwork
 
 func _ready() -> void:
 	_camera = get_node_or_null("Camera3D")
+	_speed_label = Label3D.new()
+	_speed_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_speed_label.font_size = 32
+	_speed_label.position = Vector3(0.0, 2.0, 0.0)
+	add_child(_speed_label)
+
+	_rest_label = Label3D.new()
+	_rest_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_rest_label.font_size = 48
+	_rest_label.modulate = Color(0.3, 1.0, 0.4)
+	_rest_label.position = Vector3(0.0, 3.0, 0.0)
+	_rest_label.text = "REST ZONE"
+	_rest_label.visible = false
+	add_child(_rest_label)
+	add_to_group("vehicles")
 
 
 func _outward_from(props: Dictionary) -> Vector3:
@@ -86,13 +105,32 @@ func _physics_process(delta: float) -> void:
 	var radial_vel  := velocity.dot(outward) * outward
 	var surface_vel := velocity - radial_vel
 
+	var effective_speed := speed
+	if rest_zone_inside:
+		effective_speed = speed * 0.5
+
 	if abs(throttle) > 0.001:
 		surface_vel = surface_vel.move_toward(
-				vehicle_fwd * throttle * speed, acceleration * delta)
+				vehicle_fwd * throttle * effective_speed, acceleration * delta)
 	else:
 		surface_vel = surface_vel.move_toward(Vector3.ZERO, friction * delta)
 
 	velocity = surface_vel + radial_vel
+
+	# ── Rest zone detection ───────────────────────────────────────────────
+	var in_rest := false
+	var tree := get_tree()
+	if tree:
+		for node in tree.get_nodes_in_group("rest_zones"):
+			if node is RestZone:
+				var rz := node as RestZone
+				var local: Vector3 = rz.to_local(global_position)
+				var half: float = rz.length * 0.5
+				if absf(local.z - half) < half + 2.0 \
+					and Vector2(local.x, local.y).length() < rz.radius + 2.0:
+					in_rest = true
+					break
+	rest_zone_inside = in_rest
 
 	# ── Keep vehicle flat on the tube surface ─────────────────────────────
 	_flatten_to_surface(inward, delta)
@@ -101,6 +139,11 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if _speed_label:
+		var spd := velocity.length()
+		_speed_label.text = "speed %.1f%s" % [spd, " (REST)" if rest_zone_inside else ""]
+	if _rest_label:
+		_rest_label.visible = rest_zone_inside
 	if _camera == null:
 		return
 	# Smooth camera: lag behind the vehicle, look slightly ahead along the
