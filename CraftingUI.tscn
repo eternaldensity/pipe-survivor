@@ -31,3 +31,10 @@ horizontal_alignment = 1
 
 [node name="PresetList" type="VBoxContainer" parent="PanelContainer/VBoxContainer"]
 layout_mode = 2
+
+[node name="ParamBox" type="VBoxContainer" parent="PanelContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="PreviewContainer" type="SubViewportContainer" parent="PanelContainer/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 200)
