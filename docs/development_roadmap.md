@@ -91,17 +91,18 @@ enforced by the harness (the wide test section tapers back to the junction radiu
 
 **Goal:** Places where spellcrafting happens.
 
-**Status:** First rest zone implemented. A wide chamber (radius 15) placed in the first pipe
-with a trigger volume. The vehicle detects it, slows to 50% speed, and shows a "REST ZONE"
-label. Crafting UI overlay is still a placeholder label; full spellcrafting UI is next.
+**Status:** Rest zone, crafting UI with preset sigils and parameter tuning, and signage are
+implemented. The crafting UI shows 3 preset sigils, parameter sliders (sigma, rho, beta),
+and a live attractor preview. Full sigil preview integration and signage iconography are
+still pending.
 
 Deliverables:
 1. **[Done]** Rest-zone structure scene (wide chamber with trigger volume).
 2. **[Done]** Vehicle slows on entry; "REST ZONE" label appears.
-3. **[Partial]** Crafting UI overlay: a CanvasLayer with a panel appears in rest zones. Full
-   spellcrafting interface (presets, tuning, sigil preview) is still pending.
-4. **[Partial]** Signage: a basic 3D sign with text placed before the junction. Full
-   iconography using attractor sigil vocabulary and branch colours is still pending.
+3. **[Partial]** Crafting UI overlay: presets, parameter sliders, and attractor preview.
+   Full sigil preview integration pending.
+4. **[Partial]** Signage: 3D sign with text and coloured indicator. Full iconography using
+   attractor sigil vocabulary and branch colours still pending.
 
 **Exit criteria:** Player can drive to a rest zone, stop, and see the crafting shell; signs
 visible before junctions.
