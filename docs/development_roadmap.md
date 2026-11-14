@@ -138,10 +138,15 @@ renders above vehicle in rest zones).
 
 **Goal:** Survivors-like pressure from the network topology.
 
+**Status:** First pass implemented. Enemy vehicles use the same pipe gravity/physics and chase
+the player along the tube. A spawner places enemies at sections behind the player every 4
+seconds (up to 6 concurrent). Archetypes and topology-driven ambushes are still pending.
+
 Deliverables:
-1. Enemy vehicle scene using the same gravity/physics.
-2. Spawner driven by topology: faster enemies from behind, ambushes from passed junctions.
-3. At least two archetypes; one should make sigil shape matter (spec §2.5).
+1. **[Done]** Enemy vehicle scene using the same gravity/physics.
+2. **[Partial]** Spawner: places enemies at random sections behind the player. Topology-driven
+   ambushes (from passed junctions) and faster-from-behind logic are still pending.
+3. **[Open]** At least two archetypes; one should make sigil shape matter (spec §2.5).
 
 **Exit criteria:** Horde spawns and chases; player can survive ~60s with the Phase 4 spell.
 
