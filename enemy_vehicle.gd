@@ -1,17 +1,37 @@
-# enemy_vehicle.gd  (Phase 5 — first pass)
+# enemy_vehicle.gd  (Phase 5 — archetypes)
 class_name EnemyVehicle
 extends CharacterBody3D
 
-@export var gravity: float = 25.0
-@export var speed: float = 12.0
-@export var health: float = 3.0
+enum EnemyType { CHASER, AMBUSHER }
+
+@export var enemy_type: EnemyType = EnemyType.CHASER
+@export var network: PipeNetwork
+@export var target: Node3D  # the player vehicle
 
 var tube_origin := Vector3.ZERO
 var tube_axis := Vector3(0.0, 0.0, 1.0)
 var tube_radius := 10.0
 
-@export var network: PipeNetwork
-@export var target: Node3D  # the player vehicle
+# Type-specific stats.
+var speed: float = 12.0
+var health: float = 3.0
+var gravity: float = 25.0
+
+# Ambusher state.
+var _ambush_active: bool = false
+var _activation_distance: float = 40.0
+
+# Sigil weakness (Phase 4 integration hook).
+@export var weakness_sigil: String = ""
+
+func _ready() -> void:
+	match enemy_type:
+		EnemyType.CHASER:
+			speed = 15.0
+			health = 2.0
+		EnemyType.AMBUSHER:
+			speed = 8.0
+			health = 4.0
 
 func _physics_process(delta: float) -> void:
 	if network == null or target == null:
@@ -32,17 +52,26 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity += outward * gravity * delta
 
+	# Determine effective speed based on type and state.
+	var effective_speed := speed
+	if enemy_type == EnemyType.AMBUSHER and not _ambush_active:
+		# Ambushers wait until the player is close.
+		var dist_to_player := global_position.distance_to(target.global_position)
+		if dist_to_player < _activation_distance:
+			_ambush_active = true
+		else:
+			effective_speed = 0.0
+
 	# Chase the player: move toward target along the tube.
 	var to_target := target.global_position - global_position
 	var along_axis := to_target.dot(tube_axis)
 	var dir := tube_axis if along_axis > 0.0 else -tube_axis
-	# Blend toward target direction.
-	var desired := dir * speed
-	# Add some circumferential steering toward target.
+	var desired := dir * effective_speed
+	# Add circumferential steering toward target.
 	var to_target_perp := to_target - to_target.dot(tube_axis) * tube_axis
 	if to_target_perp.length_squared() > 1e-4:
 		var circ_dir := to_target_perp.normalized()
-		desired += circ_dir * speed * 0.3
+		desired += circ_dir * effective_speed * 0.3
 
 	var radial_vel := velocity.dot(outward) * outward
 	var surface_vel := velocity - radial_vel
