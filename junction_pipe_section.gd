@@ -8,6 +8,7 @@ extends PipeSection
 @export var branch_angle   : float = 30.0   # degrees, half-spread of the two branches
 @export var branch_length  : float = 80.0
 @export var decision_offset: float = 20.0   # distance along trunk before branches diverge
+@export var blend_length: float = 0.0       # length of the transition zone before the decision point (0 = abrupt)
 @export var has_trunk      : bool = true    # include a straight-ahead trunk
 @export var left_branch    : bool = true    # include a left-side branch
 @export var right_branch   : bool = true    # include a right-side branch
@@ -112,15 +113,16 @@ func _build_curves() -> void:
 	var ang := deg_to_rad(branch_angle)
 	var decision := Vector3(0.0, 0.0, decision_offset)
 	var dirs := [Vector3(-sin(ang), 0.0, cos(ang)), Vector3(sin(ang), 0.0, cos(ang))]
-	var branch_origin: Vector3 = decision if has_trunk else Vector3.ZERO
+	var blend_start_z: float = maxf(0.0, decision_offset - blend_length) if has_trunk else 0.0
+	var branch_origin: Vector3 = Vector3(0.0, 0.0, blend_start_z) if has_trunk else Vector3.ZERO
 	if left_branch:
-		var end: Vector3 = branch_origin + dirs[0] * branch_length
+		var end: Vector3 = decision + dirs[0] * branch_length
 		var c := Curve3D.new()
 		c.add_point(branch_origin, Vector3.ZERO, dirs[0] * (branch_length * 0.4))
 		c.add_point(end, -dirs[0] * (branch_length * 0.4), Vector3.ZERO)
 		_curves.append(c)
 	if right_branch:
-		var end: Vector3 = branch_origin + dirs[1] * branch_length
+		var end: Vector3 = decision + dirs[1] * branch_length
 		var c := Curve3D.new()
 		c.add_point(branch_origin, Vector3.ZERO, dirs[1] * (branch_length * 0.4))
 		c.add_point(end, -dirs[1] * (branch_length * 0.4), Vector3.ZERO)
@@ -243,16 +245,18 @@ func _build_meshes() -> void:
 		combiner.add_child(trunk)
 
 	var decision := Vector3(0.0, 0.0, decision_offset)
-	var start_z: float = decision_offset if has_trunk else 0.0
-	var start := Vector3(0.0, 0.0, start_z)
+	var blend_start_z: float = maxf(0.0, decision_offset - blend_length) if has_trunk else 0.0
+	var start := Vector3(0.0, 0.0, blend_start_z)
 	for i in range(2):
 		if (i == 0 and not left_branch) or (i == 1 and not right_branch):
 			continue
 		var d: Vector3 = dirs[i]
+		var origin: Vector3 = start
 		var end: Vector3 = decision + d * branch_length
+		var length: float = (end - origin).length()
 		var b := CSGCylinder3D.new()
 		b.radius = tube_radius
-		b.height = branch_length
+		b.height = length
 		b.sides = PipeSection.RING_SEGMENTS
 		var y := d
 		var x := Vector3.UP.cross(y)
@@ -261,7 +265,7 @@ func _build_meshes() -> void:
 		x = x.normalized()
 		var z := x.cross(y).normalized()
 		b.basis = Basis(x, y, z)
-		b.position = start + d * (branch_length * 0.5)
+		b.position = (origin + end) * 0.5
 		combiner.add_child(b)
 
 	add_child(combiner)
@@ -284,9 +288,41 @@ func _build_meshes() -> void:
 		mesh_instance.mesh = stripped
 		mesh_instance.position = Vector3.ZERO
 		mesh_instance.basis = Basis.IDENTITY
-		var mat := StandardMaterial3D.new()
-		mat.vertex_color_use_as_albedo = true
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# Wall-colour shader: per-fragment nearest-branch colouring.
+		var shader := load("res://junction_color.gdshader") as Shader
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("tube_radius", tube_radius)
+		# Branch starts and directions (local space). Disabled branches are
+		# pushed far away so they never win the nearest test.
+		var ang2 := deg_to_rad(branch_angle)
+		var decision2 := Vector3(0.0, 0.0, decision_offset)
+		var far := Vector3(0.0, 0.0, 10000.0)
+		var starts := []
+		var dirs2 := []
+		if has_trunk:
+			starts.append(Vector3.ZERO)
+			dirs2.append(Vector3(0.0, 0.0, 1.0))
+		else:
+			starts.append(far)
+			dirs2.append(Vector3(0.0, 0.0, 1.0))
+		if left_branch:
+			starts.append(decision2)
+			dirs2.append(Vector3(-sin(ang2), 0.0, cos(ang2)))
+		else:
+			starts.append(far)
+			dirs2.append(Vector3(-sin(ang2), 0.0, cos(ang2)))
+		if right_branch:
+			starts.append(decision2)
+			dirs2.append(Vector3(sin(ang2), 0.0, cos(ang2)))
+		else:
+			starts.append(far)
+			dirs2.append(Vector3(sin(ang2), 0.0, cos(ang2)))
+		mat.set_shader_parameter("branch_start", starts)
+		mat.set_shader_parameter("branch_dir", dirs2)
+		var colors := [Color(0.7, 0.7, 0.75), Color(0.3, 0.6, 1.0), Color(1.0, 0.5, 0.3)]
+		mat.set_shader_parameter("branch_color", colors)
+		mat.set_shader_parameter("blend", 2.0)
 		mesh_instance.material_override = mat
 
 func _build_collisions() -> void:
