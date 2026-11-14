@@ -29,7 +29,7 @@ without NaN, radius stays within pipe, section transitions are seamless. **Met.*
 Deliverables:
 1. **[Done]** Steering ramp: `steering_amount` moves toward input with a tunable rate
    (`steer_accel` export).
-2. **[Open]** Camera: follow smoothing, look-ahead along tube axis, roll with vehicle.
+2. **[Done]** Camera: smooth lag and look-ahead along tube axis, roll inherited from vehicle.
 3. **[Partial]** Speed feel: `gravity`, `speed`, `acceleration`, `friction`, `turn_speed`,
    `steer_accel` are now exports. A speed HUD readout is still missing.
 4. **[Partial]** Lighting: ambient world environment added; per-section emissive/area lights
@@ -75,10 +75,15 @@ enforced by the harness (the wide test section tapers back to the junction radiu
 
 **Goal:** Places where spellcrafting happens.
 
+**Status:** First rest zone implemented. A wide chamber (radius 15) placed in the first pipe
+with a trigger volume. The vehicle detects it, slows to 50% speed, and shows a "REST ZONE"
+label. Crafting UI overlay is still a placeholder label; full spellcrafting UI is next.
+
 Deliverables:
-1. Rest-zone structure scene placed in the network (a wider, lit chamber).
-2. Vehicle slows on entry; crafting UI overlay (placeholder) appears.
-3. Signage/iconography system: signs before splits using attractor sigil vocabulary and
+1. **[Done]** Rest-zone structure scene (wide chamber with trigger volume).
+2. **[Done]** Vehicle slows on entry; "REST ZONE" label appears.
+3. **[Open]** Crafting UI overlay: full spellcrafting interface (placeholder label only).
+4. **[Open]** Signage/iconography system: signs before splits using attractor sigil vocabulary and
    branch colours (spec §2.4).
 
 **Exit criteria:** Player can drive to a rest zone, stop, and see the crafting shell; signs
