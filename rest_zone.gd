@@ -1,45 +1,36 @@
 @tool
-# rest_zone.gd  (Phase 3 — first pass)
+# rest_zone.gd  (Phase 3 — chamber as a pipe section)
 class_name RestZone
-extends Node3D
+extends StraightPipeSection
 
-@export var radius: float = 15.0
-@export var length: float = 60.0
+@export var slow_factor: float = 0.5
 
-@onready var mesh_instance : MeshInstance3D = $MeshInstance3D
-@onready var area : Area3D = $Area3D
+@onready var area: Area3D = $Area3D
+
+var _vehicle_inside: bool = false
 
 func _ready() -> void:
-	add_to_group("rest_zones")
-	# Wide chamber visual.
-	var m := CylinderMesh.new()
-	m.top_radius = radius
-	m.bottom_radius = radius
-	m.height = length
-	m.radial_segments = PipeSection.RING_SEGMENTS
-	m.cap_top = false
-	m.cap_bottom = false
-	mesh_instance.mesh = m
-	mesh_instance.position = Vector3(0.0, 0.0, length * 0.5)
-	mesh_instance.basis = Basis(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, -1, 0))
+	# StraightPipeSection._ready sets up markers and mesh. Override mesh to a
+	# distinct colour.
+	super._ready()
+	if mesh_instance:
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.3, 0.8, 0.4)
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh_instance.material_override = mat
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.3, 0.8, 0.4)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mesh_instance.material_override = mat
-
-	# Trigger collision shape.
-	var col := $Area3D/CollisionShape3D as CollisionShape3D
-	if col:
-		var cs := CylinderShape3D.new()
-		cs.radius = radius
-		cs.height = length
-		col.shape = cs
-		col.position = Vector3(0.0, 0.0, length * 0.5)
-		col.rotation = Vector3(PI * 0.5, 0.0, 0.0)
-
-	area.body_entered.connect(_on_body_entered)
-	area.body_exited.connect(_on_body_exited)
+	# Area3D trigger for UI detection.
+	if area:
+		area.body_entered.connect(_on_body_entered)
+		area.body_exited.connect(_on_body_exited)
+		var col := area.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		if col:
+			var cs := CylinderShape3D.new()
+			cs.radius = maxf(entry_radius, exit_radius)
+			cs.height = length
+			col.shape = cs
+			col.position = Vector3(0.0, 0.0, 0.0)
+			col.rotation = Vector3(PI * 0.5, 0.0, 0.0)
 
 func _on_body_entered(body: Node3D) -> void:
 	if body is CharacterBody3D:
@@ -52,3 +43,7 @@ func _on_body_exited(body: Node3D) -> void:
 		var v := body as Vehicle
 		if v:
 			v.rest_zone_inside = false
+
+# Override contains_point to use the wide radius.
+func contains_point(world_pos: Vector3) -> bool:
+	return super.contains_point(world_pos)

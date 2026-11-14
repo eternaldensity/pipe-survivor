@@ -25,17 +25,14 @@ func _ready() -> void:
 	network.add_section(straight_section, { "entry_radius": 6.0, "exit_radius": 6.0, "length": 60.0 })
 	network.add_section(straight_section, { "entry_radius": 6.0 })   # widens 6 -> 10
 
-	# ── Mid straight with a rest zone ─────────────────────────────────────
-	var mid_straight := network.add_section(straight_section, { "length": 100.0 })
-	# Rest zone placed at the end of the mid straight.
-	var rest_zone = rest_zone_scene.instantiate()
-	rest_zone.position = mid_straight.exit.global_position
-	rest_zone.rotation = mid_straight.exit.global_rotation
-	add_child(rest_zone)
+	# ── Mid straight ──────────────────────────────────────────────────────
+	network.add_section(straight_section, { "length": 100.0 })
 
 	# ── Second bend (45°) then a wide section ─────────────────────────────
 	network.add_section(bend_section, { "bend_angle": 45.0, "length": 100.0, "tube_radius": 10.0 })
-	network.add_section(straight_section, { "exit_radius": 20.0, "length": 40.0 })   # widens 10 -> 20
+	var wide_section := network.add_section(straight_section, { "exit_radius": 20.0, "length": 40.0 })   # widens 10 -> 20
+	# Rest zone as a wide chamber section (radius 20).
+	network.add_section(load("res://RestZone.tscn"), { "entry_radius": 20.0, "exit_radius": 20.0, "length": 60.0 })
 	network.add_section(straight_section, { "entry_radius": 20.0, "exit_radius": 10.0, "length": 200.0 })  # tapers to 10
 
 	# ── Trident junction ──────────────────────────────────────────────────
@@ -72,7 +69,8 @@ func _ready() -> void:
 
 	# Phase 5: Enemy spawner.
 	var spawner = EnemySpawner.new()
-	spawner.enemy_scene = load("res://EnemyVehicle.tscn")
+	spawner.chaser_scene = load("res://EnemyVehicle.tscn")
+	spawner.ambusher_scene = load("res://EnemyVehicle.tscn")
 	spawner.network = network
 	spawner.target = $Vehicle
 	spawner.spawn_interval = 4.0
