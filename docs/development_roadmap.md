@@ -82,9 +82,10 @@ label. Crafting UI overlay is still a placeholder label; full spellcrafting UI i
 Deliverables:
 1. **[Done]** Rest-zone structure scene (wide chamber with trigger volume).
 2. **[Done]** Vehicle slows on entry; "REST ZONE" label appears.
-3. **[Open]** Crafting UI overlay: full spellcrafting interface (placeholder label only).
-4. **[Open]** Signage/iconography system: signs before splits using attractor sigil vocabulary and
-   branch colours (spec §2.4).
+3. **[Partial]** Crafting UI overlay: a CanvasLayer with a panel appears in rest zones. Full
+   spellcrafting interface (presets, tuning, sigil preview) is still pending.
+4. **[Partial]** Signage: a basic 3D sign with text placed before the junction. Full
+   iconography using attractor sigil vocabulary and branch colours is still pending.
 
 **Exit criteria:** Player can drive to a rest zone, stop, and see the crafting shell; signs
 visible before junctions.
