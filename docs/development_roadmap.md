@@ -167,12 +167,17 @@ Deliverables:
 
 **Goal:** A Lorenz-style boss with a live, never-exactly-repeating attack pattern.
 
-Deliverables:
-1. Boss scene with attractor-driven movement/attacks (attractor as verb, spec §3.4).
-2. Boss arena (larger tube chamber or rest-zone-adjacent).
-3. Win/lose flow.
+**Status:** First pass implemented. Boss vehicle uses a Lorenz attractor to drive its
+movement (scaled to the arena). The boss is placed in the arena section at the end of
+the trunk path. Spell zones damage both enemies and the boss. Win/lose flow is still
+pending.
 
-**Exit criteria:** Boss fight is playable and readable; player can win and lose.
+Deliverables:
+1. **[Partial]** Boss scene with attractor-driven movement (attractor as verb, spec §3.4).
+   Movement works; attacks are still pending.
+2. **[Partial]** Boss arena: the trunk path ends in a widening section (radius 10→20).
+   A dedicated chamber is still pending.
+3. **[Open]** Win/lose flow.
 
 ---
 
