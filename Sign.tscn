@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://sign001"]
+
+[ext_resource type="Script" path="res://sign.gd" id="1_sign"]
+
+[node name="Sign" type="Node3D"]
+script = ExtResource("1_sign")
+
+[node name="Label3D" type="Label3D" parent="."]
+text = "SIGN"
+font_size = 64

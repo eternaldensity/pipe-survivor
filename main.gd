@@ -18,6 +18,12 @@ func _ready() -> void:
 	network.add_section(straight_section, { "entry_radius": 20.0, "exit_radius": 10.0, "length": 200.0 })   # tapers back to junction radius
 	# Phase 2: a trident junction (trunk + two branches), each with a continuation.
 	var j := network.add_section(junction_section, {"trunk_length": 60.0, "branch_angle": 30.0, "tube_radius": 10.0})
+
+	# Signage before the junction (Phase 3).
+	var sign = load("res://Sign.tscn").instantiate()
+	sign.text = "JUNCTION AHEAD"
+	sign.position = j.entry.global_position - j.global_transform.basis.z * 15.0 + Vector3(0.0, 8.0, 0.0)
+	add_child(sign)
 	var trunk := network.add_section(straight_section, {"length": 80.0, "entry_radius": 10.0, "exit_radius": 10.0}, j, 0)
 	var left  := network.add_section(straight_section, {"length": 80.0, "entry_radius": 10.0, "exit_radius": 10.0}, j, 1)
 	var right := network.add_section(straight_section, {"length": 80.0, "entry_radius": 10.0, "exit_radius": 10.0}, j, 2)
@@ -30,6 +36,11 @@ func _ready() -> void:
 	rest_zone.position = Vector3(0.0, 0.0, 0.0)
 	rest_zone.rotation = Vector3.ZERO
 	add_child(rest_zone)
+
+	# Crafting UI overlay (Phase 3 placeholder).
+	var crafting_ui = load("res://CraftingUI.tscn").instantiate()
+	add_child(crafting_ui)
+	crafting_ui.bind_vehicle($Vehicle)
 	# Left branch continuation.
 	network.add_section(bend_section, {"bend_angle": 20.0, "length": 120.0, "tube_radius": 10.0}, left, 0)
 	network.add_section(straight_section, {"length": 150.0, "entry_radius": 10.0, "exit_radius": 10.0})
