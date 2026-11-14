@@ -138,16 +138,20 @@ renders above vehicle in rest zones).
 
 **Goal:** Survivors-like pressure from the network topology.
 
-**Status:** First pass implemented. Enemy vehicles use the same pipe gravity/physics and chase
-the player along the tube. A spawner places enemies at sections behind the player every 4
-seconds (up to 6 concurrent). Enemies don't block the player (collision layer separation).
-Archetypes and topology-driven ambushes are still pending.
+**Status:** Enemy archetypes (chaser + ambusher) and topology-driven ambushes implemented.
+Chasers are fast (speed 15, health 2) and always chase. Ambushers are slow (speed 8, health 4)
+and wait until the player is within 40 units, then activate. When the player passes a
+junction, ambushers spawn at untraveled exits. A `weakness_sigil` property is reserved for
+Phase 4 spell integration.
 
 Deliverables:
 1. **[Done]** Enemy vehicle scene using the same gravity/physics.
-2. **[Partial]** Spawner: places enemies at random sections behind the player. Topology-driven
-   ambushes (from passed junctions) and faster-from-behind logic are still pending.
-3. **[Open]** At least two archetypes; one should make sigil shape matter (spec §2.5).
+2. **[Done]** Enemy archetypes: chaser and ambusher with distinct stats and behaviour.
+3. **[Done]** Topology-driven ambushes: when the player passes a junction, ambushers spawn
+   at untraveled exits.
+4. **[Partial]** Spawner: places chasers behind the player, ambushers at junctions. Faster-
+   from-behind logic still pending.
+5. **[Open]** At least two archetypes that make sigil shape matter (spec §2.5).
 
 **Exit criteria:** Horde spawns and chases; player can survive ~60s with the Phase 4 spell.
 
