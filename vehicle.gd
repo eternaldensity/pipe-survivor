@@ -23,7 +23,7 @@ var _camera        : Camera3D = null
 var _cam_pos       := Vector3(0.0, 1.5, 2.5)
 var _cam_basis     := Basis.IDENTITY
 var _cam_ready     := false
-var _speed_label   : Label3D = null
+var _speed_label   : Label = null
 var _rest_label    : Label3D = null
 var _attractor_preview : AttractorPreview = null
 
@@ -39,11 +39,21 @@ var spell_beta: float = 8.0 / 3.0
 func _ready() -> void:
 	_camera = get_node_or_null("Camera3D")
 	safe_margin = 0.05
-	_speed_label = Label3D.new()
-	_speed_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_speed_label.font_size = 32
-	_speed_label.position = Vector3(0.0, 2.0, 0.0)
-	add_child(_speed_label)
+	# Speed HUD (CanvasLayer so it stays on screen).
+	var hud := CanvasLayer.new()
+	hud.name = "SpeedHUD"
+	add_child(hud)
+	var panel := PanelContainer.new()
+	panel.anchor_left = 0.0
+	panel.anchor_top = 0.0
+	panel.offset_left = 10.0
+	panel.offset_top = 10.0
+	panel.offset_right = 200.0
+	panel.offset_bottom = 60.0
+	hud.add_child(panel)
+	_speed_label = Label.new()
+	_speed_label.text = "Speed: 0.0"
+	panel.add_child(_speed_label)
 
 	_rest_label = Label3D.new()
 	_rest_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -70,7 +80,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _speed_label:
 		var spd := velocity.length()
-		_speed_label.text = "speed %.1f%s" % [spd, " (REST)" if rest_zone_inside else ""]
+		_speed_label.text = "Speed: %.1f%s" % [spd, "  [REST]" if rest_zone_inside else ""]
 	if _rest_label:
 		_rest_label.visible = rest_zone_inside
 	if _attractor_preview:
@@ -201,9 +211,6 @@ func _physics_process(delta: float) -> void:
 	var effective_speed := speed
 	if rest_zone_inside:
 		effective_speed = speed * 0.5
-	# Slow down in narrow sections to avoid wall clipping.
-	if tube_radius < 8.0:
-		effective_speed = minf(effective_speed, 8.0)
 
 	if abs(throttle) > 0.001:
 		surface_vel = surface_vel.move_toward(
