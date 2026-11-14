@@ -16,6 +16,8 @@ var rest_zone_inside := false
 
 var _spell_cooldown := 0.0
 const SPELL_COOLDOWN := 2.0
+var selected_preset_index := 0
+var _presets: Array[PresetSigil] = []
 
 var _camera        : Camera3D = null
 var _cam_pos       := Vector3(0.0, 1.5, 2.5)
@@ -30,6 +32,7 @@ var _attractor_preview : AttractorPreview = null
 func _ready() -> void:
 	_camera = get_node_or_null("Camera3D")
 	safe_margin = 0.05
+	_presets = PresetSigil.default_presets()
 	_speed_label = Label3D.new()
 	_speed_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_speed_label.font_size = 32
@@ -132,9 +135,25 @@ func _physics_process(delta: float) -> void:
 
 	# ── Spell casting ─────────────────────────────────────────────────────
 	_spell_cooldown = maxf(0.0, _spell_cooldown - delta)
+	# Preset selection via number keys.
+	if Input.is_key_pressed(KEY_1):
+		selected_preset_index = 0
+	if Input.is_key_pressed(KEY_2):
+		selected_preset_index = 1
+	if Input.is_key_pressed(KEY_3):
+		selected_preset_index = 2
 	if Input.is_action_just_pressed("ui_accept") and _spell_cooldown <= 0.0:
 		_spell_cooldown = SPELL_COOLDOWN
 		var zone := SpellZone.new()
+		# Configure attractor from selected preset.
+		if selected_preset_index >= 0 and selected_preset_index < _presets.size():
+			var preset := _presets[selected_preset_index]
+			if preset.params.has("sigma"):
+				zone.attractor.sigma = preset.params["sigma"]
+			if preset.params.has("rho"):
+				zone.attractor.rho = preset.params["rho"]
+			if preset.params.has("beta"):
+				zone.attractor.beta = preset.params["beta"]
 		var fwd := -global_transform.basis.z
 		fwd = fwd - fwd.dot(outward) * outward
 		if fwd.length_squared() > 1e-4:
