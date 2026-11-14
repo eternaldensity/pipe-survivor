@@ -20,6 +20,9 @@ var _curves: Array[Curve3D] = []
 var _curve_key := Vector3(-1.0, -1.0, -1.0)  # trunk_length, branch_length, branch_angle + flags packed into z via sign
 var _flags_key := Vector3i(0, 0, 0)
 
+# Static mesh cache keyed by junction parameters.
+static var _mesh_cache: Dictionary = {}
+
 func _ensure_curves() -> void:
 	var key := Vector3(trunk_length, branch_length, branch_angle)
 	var fkey := Vector3i(int(has_trunk), int(left_branch), int(right_branch))
@@ -211,6 +214,11 @@ func _opening_planes() -> Array:
 		idx += 1
 	return planes
 
+func _cache_key() -> String:
+	return "%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+		tube_radius, trunk_length, branch_angle, branch_length,
+		decision_offset, blend_length, has_trunk, left_branch, right_branch]
+
 func _build_meshes() -> void:
 	# Clear previously generated collision children.
 	if mesh_instance:
@@ -224,6 +232,15 @@ func _build_meshes() -> void:
 	if _curves.is_empty():
 		if mesh_instance:
 			mesh_instance.mesh = null
+		return
+
+	# Check cache.
+	var key := _cache_key()
+	if _mesh_cache.has(key):
+		if mesh_instance:
+			mesh_instance.mesh = _mesh_cache[key]
+			mesh_instance.position = Vector3.ZERO
+			mesh_instance.basis = Basis.IDENTITY
 		return
 
 	# Build one CSG cylinder per enabled path.
@@ -284,6 +301,7 @@ func _build_meshes() -> void:
 			mesh_instance.mesh = null
 		return
 	var stripped := _strip_caps_and_color(union)
+	_mesh_cache[key] = stripped
 	if mesh_instance:
 		mesh_instance.mesh = stripped
 		mesh_instance.position = Vector3.ZERO
