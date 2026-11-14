@@ -102,30 +102,55 @@ func _on_preset_selected(p: PresetSigil) -> void:
 		slider_rho.value = p.params["rho"]
 	if p.params.has("beta"):
 		slider_beta.value = p.params["beta"]
+	# Update vehicle's selected preset index.
+	if vehicle and vehicle._presets.size() > 0:
+		var idx := vehicle._presets.find(p)
+		if idx >= 0:
+			vehicle.selected_preset_index = idx
 	_update_attractor()
+	_sync_to_vehicle()
 
 func _on_sigma_changed(val: float) -> void:
 	attractor.sigma = val
 	label_sigma.text = "Sigma: %.1f" % val
 	_update_attractor()
+	_sync_to_vehicle()
 
 func _on_rho_changed(val: float) -> void:
 	attractor.rho = val
 	label_rho.text = "Rho: %.1f" % val
 	_update_attractor()
+	_sync_to_vehicle()
 
 func _on_beta_changed(val: float) -> void:
 	attractor.beta = val
 	label_beta.text = "Beta: %.2f" % val
 	_update_attractor()
+	_sync_to_vehicle()
 
 func _update_attractor() -> void:
 	if preview:
 		preview.attractor = attractor
 		preview.update_preview()
 
+func _sync_to_vehicle() -> void:
+	if vehicle:
+		vehicle.spell_sigma = attractor.sigma
+		vehicle.spell_rho = attractor.rho
+		vehicle.spell_beta = attractor.beta
+
 func bind_vehicle(v: Vehicle) -> void:
 	vehicle = v
+	# Initialize from vehicle's current params.
+	attractor.sigma = vehicle.spell_sigma
+	attractor.rho = vehicle.spell_rho
+	attractor.beta = vehicle.spell_beta
+	if slider_sigma:
+		slider_sigma.value = attractor.sigma
+	if slider_rho:
+		slider_rho.value = attractor.rho
+	if slider_beta:
+		slider_beta.value = attractor.beta
 
 func _process(_delta: float) -> void:
 	if vehicle:
