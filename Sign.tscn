@@ -2,9 +2,16 @@
 
 [ext_resource type="Script" path="res://sign.gd" id="1_sign"]
 
+[sub_resource type="BoxMesh" id="BoxMesh_sign"]
+size = Vector3(2, 0.5, 0.5)
+
 [node name="Sign" type="Node3D"]
 script = ExtResource("1_sign")
 
 [node name="Label3D" type="Label3D" parent="."]
 text = "SIGN"
 font_size = 64
+
+[node name="Indicator" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+mesh = SubResource("BoxMesh_sign")
