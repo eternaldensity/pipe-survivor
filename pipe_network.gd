@@ -35,6 +35,16 @@ func get_section_at(world_pos: Vector3) -> PipeSection:
 		return null
 	# Stick with current section until we're clearly outside it
 	if current_section != null and current_section.contains_point(world_pos):
+		# Hand off out of a junction when the vehicle is right at one of its
+		# exit markers, so it doesn't stick to the junction past the exit.
+		if current_section is JunctionPipeSection:
+			var j := current_section as JunctionPipeSection
+			for s in sections:
+				if s == current_section or s.attached_from != j:
+					continue
+				if s.entry.global_position.distance_to(world_pos) < 12.0:
+					current_section = s
+					return s
 		return current_section
 	# Then look for a new one
 	for s in sections:
