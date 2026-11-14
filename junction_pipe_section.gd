@@ -164,8 +164,29 @@ func contains_point(world_pos: Vector3) -> bool:
 	_ensure_curves()
 	if _curves.is_empty():
 		return false
-	var info := _nearest_curve_point(local_pos)
-	return info["dist"] < tube_radius + 3.0
+	var best_dist := INF
+	var best_curve: Curve3D = null
+	var best_off := 0.0
+	for c in _curves:
+		var off := c.get_closest_offset(local_pos)
+		var tr := c.sample_baked_with_rotation(off)
+		var d := local_pos.distance_to(tr.origin)
+		if d < best_dist:
+			best_dist = d
+			best_curve = c
+			best_off = off
+	if best_curve == null:
+		return false
+	if best_dist > tube_radius + 3.0:
+		return false
+	# Reject points that have clearly passed the end of the nearest curve so
+	# the vehicle hands off to the attached section at the exit.
+	var end_pt := best_curve.sample_baked(best_curve.get_baked_length())
+	var tangent := -best_curve.sample_baked_with_rotation(best_curve.get_baked_length()).basis.z
+	if best_off >= best_curve.get_baked_length() - 0.5 \
+		and (local_pos - end_pt).dot(tangent) > 1.0:
+		return false
+	return true
 
 func _opening_planes() -> Array:
 	var planes: Array = []

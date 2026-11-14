@@ -131,7 +131,7 @@ func _test_steering() -> void:
 func _test_branch() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	await process_frame
+	for i in range(5): await process_frame
 	var net = main.get_node("PipeNetwork")
 	var junction: JunctionPipeSection = null
 	for s in net.sections:
@@ -156,7 +156,7 @@ func _test_branch() -> void:
 		await process_frame
 		return
 	var curve: Curve3D = junction._curves[1]  # left branch
-	var tr := curve.sample_baked_with_rotation(curve.get_baked_length() * 0.7)
+	var tr := curve.sample_baked_with_rotation(curve.get_baked_length() * 0.9)
 	var tangent := (junction.global_transform.basis * (-tr.basis.z)).normalized()
 	var perp := tangent.cross(Vector3.UP).normalized()
 	if perp.length_squared() < 0.5:
@@ -188,6 +188,7 @@ func _test_branch() -> void:
 		outside_frames = 0
 		if sec == branch_start or sec.attached_from == branch_start:
 			branch_section_seen = true
+
 		if i < 5:
 			continue  # let the teleported body settle before measuring
 		var p: Dictionary = sec.get_tube_properties(v.global_position)
