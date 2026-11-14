@@ -36,7 +36,6 @@ func _ready() -> void:
 			c.free()
 
 	_update_markers()
-	exits.clear()
 	_ensure_curves()
 
 	_build_meshes()
@@ -48,6 +47,7 @@ func _ready() -> void:
 	await _build_collisions()
 
 func _update_markers() -> void:
+
 	var has_branch := left_branch or right_branch
 	var start_z: float = decision_offset if has_trunk else 0.0
 	var start := Vector3(0.0, 0.0, start_z)
@@ -92,6 +92,7 @@ func _update_markers() -> void:
 	# Fallback: if no exits enabled, keep the trunk exit.
 	if exits.is_empty() and exit:
 		exits.append(exit)
+
 
 func _build_curves() -> void:
 	_curves.clear()
