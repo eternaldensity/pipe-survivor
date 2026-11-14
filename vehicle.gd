@@ -29,6 +29,7 @@ var _attractor_preview : AttractorPreview = null
 
 func _ready() -> void:
 	_camera = get_node_or_null("Camera3D")
+	safe_margin = 0.05
 	_speed_label = Label3D.new()
 	_speed_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_speed_label.font_size = 32
