@@ -20,7 +20,20 @@ func _ready() -> void:
 	m.radial_segments = PipeSection.RING_SEGMENTS
 	m.cap_top       = false
 	m.cap_bottom    = false
-	mesh_instance.mesh = m	
+
+	# CylinderMesh normals point outward; the vehicle views the pipe from the
+	# inside, so negate them for correct interior lighting. Using ArrayMesh
+	# avoids the SurfaceTool.generate_normals smoothing that broke an earlier
+	# attempt.
+	var arrays := m.surface_get_arrays(0)
+	var normals := arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array
+	for i in range(normals.size()):
+		normals[i] = -normals[i]
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh_instance.mesh = am
+
 	mesh_instance.create_trimesh_collision()
 	# this auto-generates a StaticBody3D with correct collision as a child
 	await get_tree().process_frame  # let the child node appear
