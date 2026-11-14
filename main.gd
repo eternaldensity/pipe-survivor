@@ -25,6 +25,11 @@ func _ready() -> void:
 	# Trunk continuation: a gentle bend then a long straight.
 	network.add_section(bend_section, {"bend_angle": 25.0, "length": 150.0, "tube_radius": 10.0}, trunk, 0)
 	network.add_section(straight_section, {"length": 200.0, "entry_radius": 10.0, "exit_radius": 10.0})
+	# Rest zone in the first straight pipe (reachable without steering).
+	var rest_zone = load("res://RestZone.tscn").instantiate()
+	rest_zone.position = Vector3(0.0, 0.0, 0.0)
+	rest_zone.rotation = Vector3.ZERO
+	add_child(rest_zone)
 	# Left branch continuation.
 	network.add_section(bend_section, {"bend_angle": 20.0, "length": 120.0, "tube_radius": 10.0}, left, 0)
 	network.add_section(straight_section, {"length": 150.0, "entry_radius": 10.0, "exit_radius": 10.0})
