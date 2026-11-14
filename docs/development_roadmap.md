@@ -116,9 +116,10 @@ visible before junctions.
 
 **Status:** Attractor evaluation (Lorenz, RK4) and a vector-field spell zone are implemented.
 The vehicle casts on `ui_accept` (Enter/Space) with a 2s cooldown. The zone applies the
-attractor derivative as a velocity nudge to bodies inside for 5s. An `AttractorPreview`
-node renders the Lorenz shape as a line strip above the vehicle in rest zones. Preset
-sigils and the full crafting UI are still pending.
+attractor derivative as a velocity nudge to bodies inside for 5s. Preset sigils (3 presets)
+are selectable via number keys 1/2/3 and configure the cast attractor. An `AttractorPreview`
+node renders the Lorenz shape as a line strip above the vehicle in rest zones. Full crafting
+UI integration (tuning sliders connected to cast) is still pending.
 
 Deliverables:
 1. **[Done]** Attractor evaluation (RK4) for Lorenz in GDScript, bounded parameters.
@@ -127,7 +128,9 @@ Deliverables:
 3. **[Partial]** Live preview of attractor shape: `AttractorPreview` node renders the
    Lorenz shape as a line strip above the vehicle in rest zones. Full crafting-UI
    integration pending.
-4. **[Open]** Preset sigils ("cards") as starting spells; name → seeded sigil (spec §3.6).
+4. **[Partial]** Preset sigils ("cards") as starting spells; name → seeded sigil (spec §3.6).
+   Presets are selectable via number keys and configure the cast attractor. Full crafting
+   UI integration still pending.
 
 **Exit criteria:** Player can cast a vector-field zone that affects a test projectile/debris;
 shape preview renders. **Partially met** (cast works and affects vehicle velocity; preview
