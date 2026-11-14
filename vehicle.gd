@@ -1,5 +1,6 @@
-class_name Vehicle
 extends CharacterBody3D
+
+class_name Vehicle
 
 @export var gravity      := 25.0
 @export var speed        := 20.0
@@ -13,15 +14,10 @@ var tube_axis       := Vector3(0.0, 0.0, 1.0)
 var tube_radius     := 10.0
 var steering_amount := 0.0
 var rest_zone_inside := false
-
+var health := 100.0
+var max_health := 100.0
 var _spell_cooldown := 0.0
 const SPELL_COOLDOWN := 2.0
-var selected_preset_index := 0
-var _presets: Array[PresetSigil] = []
-# Live spell parameters (updated by crafting UI).
-var spell_sigma: float = 10.0
-var spell_rho: float = 28.0
-var spell_beta: float = 8.0 / 3.0
 
 var _camera        : Camera3D = null
 var _cam_pos       := Vector3(0.0, 1.5, 2.5)
@@ -31,17 +27,18 @@ var _speed_label   : Label3D = null
 var _rest_label    : Label3D = null
 var _attractor_preview : AttractorPreview = null
 
+var selected_preset_index := 0
+var _presets: Array[PresetSigil] = []
+# Live spell parameters (updated by crafting UI).
+var spell_sigma: float = 10.0
+var spell_rho: float = 28.0
+var spell_beta: float = 8.0 / 3.0
+
 @export var network : PipeNetwork
 
 func _ready() -> void:
 	_camera = get_node_or_null("Camera3D")
 	safe_margin = 0.05
-	_presets = PresetSigil.default_presets()
-	if not _presets.is_empty():
-		var p := _presets[0]
-		if p.params.has("sigma"): spell_sigma = p.params["sigma"]
-		if p.params.has("rho"): spell_rho = p.params["rho"]
-		if p.params.has("beta"): spell_beta = p.params["beta"]
 	_speed_label = Label3D.new()
 	_speed_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_speed_label.font_size = 32
@@ -61,8 +58,40 @@ func _ready() -> void:
 	_attractor_preview.visible = false
 	_attractor_preview.position = Vector3(0.0, 0.0, -5.0)
 	add_child(_attractor_preview)
-	add_to_group("vehicles")
 
+	add_to_group("vehicles")
+	_presets = PresetSigil.default_presets()
+	if not _presets.is_empty():
+		var p := _presets[0]
+		if p.params.has("sigma"): spell_sigma = p.params["sigma"]
+		if p.params.has("rho"): spell_rho = p.params["rho"]
+		if p.params.has("beta"): spell_beta = p.params["beta"]
+
+func _process(delta: float) -> void:
+	if _speed_label:
+		var spd := velocity.length()
+		_speed_label.text = "speed %.1f%s" % [spd, " (REST)" if rest_zone_inside else ""]
+	if _rest_label:
+		_rest_label.visible = rest_zone_inside
+	if _attractor_preview:
+		_attractor_preview.visible = rest_zone_inside
+		if rest_zone_inside:
+			_attractor_preview.update_preview()
+	if _camera == null:
+		return
+	var base_offset := Vector3(0.0, 1.5, 2.5)
+	# Camera stays behind and above the vehicle. No position look-ahead —
+	# look-ahead was moving the camera in front of the vehicle.
+	var target_pos := base_offset
+	var target_basis := Basis.IDENTITY
+	if not _cam_ready:
+		_cam_pos = target_pos
+		_cam_basis = target_basis
+		_cam_ready = true
+	else:
+		_cam_pos = _cam_pos.lerp(target_pos, clampf(delta * 6.0, 0.0, 1.0))
+		_cam_basis = _cam_basis.slerp(target_basis, clampf(delta * 6.0, 0.0, 1.0))
+	_camera.transform = Transform3D(_cam_basis, _cam_pos)
 
 func _outward_from(props: Dictionary) -> Vector3:
 	var axis: Vector3 = props["axis"]
@@ -72,7 +101,6 @@ func _outward_from(props: Dictionary) -> Vector3:
 	if radial.length_squared() < 1e-4:
 		return axis.cross(Vector3.UP).normalized()
 	return radial.normalized()
-
 
 func _physics_process(delta: float) -> void:
 	var section := network.get_section_at(global_position)
@@ -86,61 +114,6 @@ func _physics_process(delta: float) -> void:
 	var outward := _outward_from(props)
 	var inward  := -outward
 	up_direction = inward
-
-	# ── Steering: rotate heading around the surface normal ────────────────
-	# This is pure yaw relative to the tube surface — left/right turns the
-	# vehicle, and from then on forward always means "where I'm pointing"
-	# Steering input ramps smoothly instead of being all-or-nothing.
-	var target_turn := Input.get_axis("ui_left", "ui_right")
-	steering_amount = move_toward(steering_amount, target_turn, steer_accel * delta)
-	if abs(steering_amount) > 0.001:
-		var steer := Basis(inward, -steering_amount * turn_speed * delta)
-		global_transform.basis = steer * global_transform.basis
-
-	# ── Gravity ───────────────────────────────────────────────────────────
-	if not is_on_floor():
-		velocity += outward * gravity * delta
-
-	# ── Centripetal force ─────────────────────────────────────────────────
-	# When spiraling, circumferential velocity requires centripetal
-	# acceleration to maintain the curved path — this manifests as
-	# increased force pressing the vehicle into the wall, exactly like
-	# banking hard in a real vehicle. The faster the spiral, the heavier
-	# you feel. Forward progress along the tube axis slows automatically
-	# because your velocity vector is pointing more sideways.
-	var circ_vel    := velocity - velocity.dot(tube_axis) * tube_axis \
-								- velocity.dot(outward)   * outward
-	var to_self     := global_position - tube_origin
-	var radial_dist := (to_self - tube_axis * to_self.dot(tube_axis)).length()
-	var centripetal:float = circ_vel.length_squared() / max(radial_dist, 0.1)
-	velocity += outward * centripetal * delta
-
-	# ── Drive in the direction the vehicle is facing ──────────────────────
-	var vehicle_fwd := -global_transform.basis.z
-	vehicle_fwd = vehicle_fwd - vehicle_fwd.dot(outward) * outward
-	if vehicle_fwd.length_squared() > 1e-4:
-		vehicle_fwd = vehicle_fwd.normalized()
-	else:
-		vehicle_fwd = tube_axis
-
-	var throttle    := Input.get_axis("ui_down", "ui_up")
-	var radial_vel  := velocity.dot(outward) * outward
-	var surface_vel := velocity - radial_vel
-
-	var effective_speed := speed
-	if rest_zone_inside:
-		effective_speed = speed * 0.5
-	# Slow down in narrow sections to avoid clipping through thin walls.
-	if tube_radius < 8.0:
-		effective_speed = minf(effective_speed, 8.0)
-
-	if abs(throttle) > 0.001:
-		surface_vel = surface_vel.move_toward(
-				vehicle_fwd * throttle * effective_speed, acceleration * delta)
-	else:
-		surface_vel = surface_vel.move_toward(Vector3.ZERO, friction * delta)
-
-	velocity = surface_vel + radial_vel
 
 	# ── Spell casting ─────────────────────────────────────────────────────
 	_spell_cooldown = maxf(0.0, _spell_cooldown - delta)
@@ -185,39 +158,65 @@ func _physics_process(delta: float) -> void:
 					break
 	rest_zone_inside = in_rest
 
+	# ── Steering: rotate heading around the surface normal ────────────────
+	# This is pure yaw relative to the tube surface — left/right turns the
+	# vehicle, and from then on forward always means "where I'm pointing"
+	# Steering input ramps smoothly instead of being all-or-nothing.
+	var target_turn := Input.get_axis("ui_left", "ui_right")
+	steering_amount = move_toward(steering_amount, target_turn, steer_accel * delta)
+	if abs(steering_amount) > 0.001:
+		var steer := Basis(inward, -steering_amount * turn_speed * delta)
+		global_transform.basis = steer * global_transform.basis
+
+	# ── Gravity ───────────────────────────────────────────────────────────
+	if not is_on_floor():
+		velocity += outward * gravity * delta
+
+	# ── Centripetal force ─────────────────────────────────────────────────
+	# When spiraling, circumferential velocity requires centripetal
+	# acceleration to maintain the curved path — this manifests as
+	# increased force pressing the vehicle into the wall, exactly like
+	# banking hard in a real vehicle. The faster the spiral, the heavier
+	# you feel. Forward progress along the tube axis slows automatically
+	# because your velocity vector is pointing more sideways.
+	var circ_vel    := velocity - velocity.dot(tube_axis) * tube_axis \
+								- velocity.dot(outward)   * outward
+	var to_self     := global_position - tube_origin
+	var radial_dist := (to_self - tube_axis * to_self.dot(tube_axis)).length()
+	var centripetal:float = circ_vel.length_squared() / max(radial_dist, 0.1)
+	velocity += outward * centripetal * delta
+
+	# ── Drive in the direction the vehicle is facing ──────────────────────
+	var vehicle_fwd := -global_transform.basis.z
+	vehicle_fwd = vehicle_fwd - vehicle_fwd.dot(outward) * outward
+	if vehicle_fwd.length_squared() > 1e-4:
+		vehicle_fwd = vehicle_fwd.normalized()
+	else:
+		vehicle_fwd = tube_axis
+
+	var throttle    := Input.get_axis("ui_down", "ui_up")
+	var radial_vel  := velocity.dot(outward) * outward
+	var surface_vel := velocity - radial_vel
+
+	var effective_speed := speed
+	if rest_zone_inside:
+		effective_speed = speed * 0.5
+	# Slow down in narrow sections to avoid wall clipping.
+	if tube_radius < 8.0:
+		effective_speed = minf(effective_speed, 8.0)
+
+	if abs(throttle) > 0.001:
+		surface_vel = surface_vel.move_toward(
+				vehicle_fwd * throttle * effective_speed, acceleration * delta)
+	else:
+		surface_vel = surface_vel.move_toward(Vector3.ZERO, friction * delta)
+
+	velocity = surface_vel + radial_vel
+
 	# ── Keep vehicle flat on the tube surface ─────────────────────────────
 	_flatten_to_surface(inward, delta)
 
 	move_and_slide()
-
-
-func _process(delta: float) -> void:
-	if _speed_label:
-		var spd := velocity.length()
-		_speed_label.text = "speed %.1f%s" % [spd, " (REST)" if rest_zone_inside else ""]
-	if _rest_label:
-		_rest_label.visible = rest_zone_inside
-	if _attractor_preview:
-		_attractor_preview.visible = rest_zone_inside
-		if rest_zone_inside:
-			_attractor_preview.update_preview()
-	if _camera == null:
-		return
-	# Smooth camera: lag behind the vehicle, look slightly ahead along the
-	# tube axis, and keep the roll from the surface normal.
-	var base_offset := Vector3(0.0, 1.5, 2.5)
-	# Camera stays behind and above the vehicle. No position look-ahead —
-	# look-ahead was moving the camera in front of the vehicle.
-	var target_pos := base_offset
-	var target_basis := Basis.IDENTITY
-	if not _cam_ready:
-		_cam_pos = target_pos
-		_cam_basis = target_basis
-		_cam_ready = true
-	else:
-		_cam_pos = _cam_pos.lerp(target_pos, clampf(delta * 6.0, 0.0, 1.0))
-		_cam_basis = _cam_basis.slerp(target_basis, clampf(delta * 6.0, 0.0, 1.0))
-	_camera.transform = Transform3D(_cam_basis, _cam_pos)
 
 func _flatten_to_surface(up: Vector3, delta: float) -> void:
 	var fwd := -global_transform.basis.z
@@ -228,3 +227,8 @@ func _flatten_to_surface(up: Vector3, delta: float) -> void:
 		fwd = fwd.normalized()
 	var target := Basis.looking_at(fwd, up)
 	global_transform.basis = global_transform.basis.slerp(target, delta * 14.0)
+
+func take_damage(amount: float) -> void:
+	health = maxf(0.0, health - amount)
+	if health <= 0.0:
+		print("PLAYER DEFEATED")

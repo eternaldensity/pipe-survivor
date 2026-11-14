@@ -83,3 +83,7 @@ func _ready() -> void:
 	spawner.spawn_interval = 4.0
 	spawner.max_enemies = 6
 	add_child(spawner)
+
+	# Phase 6: Game manager (win/lose).
+	var gm = GameManager.new()
+	add_child(gm)

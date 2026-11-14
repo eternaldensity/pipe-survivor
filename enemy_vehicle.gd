@@ -81,6 +81,11 @@ func _physics_process(delta: float) -> void:
 	_flatten(delta, inward)
 	move_and_slide()
 
+	# Contact damage to the player.
+	if target and global_position.distance_to(target.global_position) < 2.0:
+		if target.has_method("take_damage"):
+			target.take_damage(10.0 * delta)
+
 func _outward_from(props: Dictionary) -> Vector3:
 	var axis: Vector3 = props["axis"]
 	var origin: Vector3 = props["origin"]
