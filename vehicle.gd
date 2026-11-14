@@ -117,6 +117,9 @@ func _physics_process(delta: float) -> void:
 	var effective_speed := speed
 	if rest_zone_inside:
 		effective_speed = speed * 0.5
+	# Slow down in narrow sections to avoid clipping through thin walls.
+	if tube_radius < 8.0:
+		effective_speed = minf(effective_speed, 8.0)
 
 	if abs(throttle) > 0.001:
 		surface_vel = surface_vel.move_toward(
@@ -179,8 +182,9 @@ func _process(delta: float) -> void:
 	# Smooth camera: lag behind the vehicle, look slightly ahead along the
 	# tube axis, and keep the roll from the surface normal.
 	var base_offset := Vector3(0.0, 1.5, 2.5)
-	var local_lookahead := global_transform.basis.inverse() * tube_axis * 4.0
-	var target_pos := base_offset + local_lookahead
+	# Camera stays behind and above the vehicle. No position look-ahead —
+	# look-ahead was moving the camera in front of the vehicle.
+	var target_pos := base_offset
 	var target_basis := Basis.IDENTITY
 	if not _cam_ready:
 		_cam_pos = target_pos
