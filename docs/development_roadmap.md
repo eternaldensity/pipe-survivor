@@ -62,12 +62,16 @@ Deliverables (spec §6):
    triangles and a drivable junction. Future optimisation: cache/bake the union mesh and reduce
    its triangle count (currently ~530).
 
-6. **[Open]** Blend length / approach zone: `decision_offset` controls where branches diverge
-   but there is no smooth transition mesh yet (branches start abruptly at the decision point).
+6. **[Done]** Blend length / approach zone: `blend_length` export controls how far before the
+   decision point the branch tubes start, creating a tunable overlap/transition zone. The CSG
+   union blends the intersection automatically.
 
 7. **[Done]** Wall-colour shader: per-fragment nearest-branch colouring via
    `junction_color.gdshader`. Branch starts and directions are passed as uniforms;
    disabled branches are pushed far away. Vertex colours are still set as a fallback.
+
+8. **[Done]** Mesh caching: built meshes are cached in a static dictionary keyed by junction
+   parameters, so identical junctions reuse the same mesh.
 6. **[Partial]** Branch identification: branches have distinct colours via material overrides.
    Still missing: the per-fragment Voronoi wall-colour shader for a blended mesh.
 7. **[Done]** Junction integrated into `main.gd`; harness drives through a branch.
