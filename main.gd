@@ -52,7 +52,14 @@ func _ready() -> void:
 
 	# Trunk path: gentle bend then a long straight.
 	network.add_section(bend_section, { "bend_angle": 25.0, "length": 150.0, "tube_radius": 10.0 }, trunk, 0)
-	network.add_section(straight_section, { "length": 200.0, "entry_radius": 10.0, "exit_radius": 10.0 })
+	var arena_section := network.add_section(straight_section, { "length": 200.0, "entry_radius": 10.0, "exit_radius": 20.0 })
+
+	# Phase 6: Boss in the arena.
+	var boss = load("res://BossVehicle.tscn").instantiate()
+	boss.network = network
+	boss.arena_center = arena_section.entry.global_position + arena_section.global_transform.basis.z * 100.0
+	add_child(boss)
+	boss.global_position = boss.arena_center
 
 	# Left branch path.
 	network.add_section(bend_section, { "bend_angle": 20.0, "length": 120.0, "tube_radius": 10.0 }, left, 0)

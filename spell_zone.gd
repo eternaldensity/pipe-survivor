@@ -45,9 +45,15 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	# Apply velocity nudge to bodies inside the zone.
+	# Apply velocity nudge and damage to bodies inside the zone.
 	for body in get_overlapping_bodies():
-		if body is CharacterBody3D:
+		if body is EnemyVehicle or body is BossVehicle:
+			var offset := body.global_position - zone_centre
+			var derivative := attractor.derivative(offset)
+			body.velocity += derivative * strength * delta
+			if body.has_method("take_damage"):
+				body.take_damage(strength * delta * 2.0)
+		elif body is CharacterBody3D:
 			var offset := body.global_position - zone_centre
 			var derivative := attractor.derivative(offset)
 			body.velocity += derivative * strength * delta

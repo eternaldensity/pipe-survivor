@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://bossv001"]
+
+[ext_resource type="Script" path="res://boss_vehicle.gd" id="1_bv"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_bv"]
+radius = 2.0
+height = 4.0
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_bv"]
+radius = 2.0
+
+[node name="BossVehicle" type="CharacterBody3D"]
+collision_layer = 4
+collision_mask = 1
+script = ExtResource("1_bv")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_bv")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_bv")
