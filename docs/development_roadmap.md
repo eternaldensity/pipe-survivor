@@ -201,6 +201,7 @@ Deliverables:
 ## Cross-cutting: Testing
 
 - Keep `tests/run.sh` green on every commit.
+- Keep `tests/run_lighting.sh` green on every commit (verifies pipe interior normals).
 - Extend the harness with each new subsystem (junction traversal, spell cast, enemy spawn).
 - Preserve any discovered failure as a replayable case under `tests/cases/`.
 - Run the harness in CI once a runner is available.
