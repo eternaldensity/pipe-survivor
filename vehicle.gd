@@ -12,7 +12,15 @@ var tube_axis       := Vector3(0.0, 0.0, 1.0)
 var tube_radius     := 10.0
 var steering_amount := 0.0
 
+var _camera        : Camera3D = null
+var _cam_pos       := Vector3(0.0, 1.5, 2.5)
+var _cam_basis     := Basis.IDENTITY
+var _cam_ready     := false
+
 @export var network : PipeNetwork
+
+func _ready() -> void:
+	_camera = get_node_or_null("Camera3D")
 
 
 func _outward_from(props: Dictionary) -> Vector3:
@@ -91,6 +99,24 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+
+func _process(delta: float) -> void:
+	if _camera == null:
+		return
+	# Smooth camera: lag behind the vehicle, look slightly ahead along the
+	# tube axis, and keep the roll from the surface normal.
+	var base_offset := Vector3(0.0, 1.5, 2.5)
+	var local_lookahead := global_transform.basis.inverse() * tube_axis * 4.0
+	var target_pos := base_offset + local_lookahead
+	var target_basis := Basis.IDENTITY
+	if not _cam_ready:
+		_cam_pos = target_pos
+		_cam_basis = target_basis
+		_cam_ready = true
+	else:
+		_cam_pos = _cam_pos.lerp(target_pos, clampf(delta * 6.0, 0.0, 1.0))
+		_cam_basis = _cam_basis.slerp(target_basis, clampf(delta * 6.0, 0.0, 1.0))
+	_camera.transform = Transform3D(_cam_basis, _cam_pos)
 
 func _flatten_to_surface(up: Vector3, delta: float) -> void:
 	var fwd := -global_transform.basis.z
