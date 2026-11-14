@@ -1,47 +1,45 @@
 @tool
-# junction_pipe_section.gd  (Phase 2 in progress)
+# junction_pipe_section.gd  (Phase 2 refinements)
 class_name JunctionPipeSection
 extends PipeSection
 
 @export var tube_radius    : float = 10.0
-@export var trunk_length   : float = 50.0
+@export var trunk_length   : float = 60.0
 @export var branch_angle   : float = 30.0   # degrees, half-spread of the two branches
 @export var branch_length  : float = 80.0
 @export var decision_offset: float = 20.0   # distance along trunk before branches diverge
+@export var has_trunk      : bool = true    # include a straight-ahead trunk
+@export var left_branch    : bool = true    # include a left-side branch
+@export var right_branch   : bool = true    # include a right-side branch
 
 @onready var mesh_instance : MeshInstance3D = $MeshInstance3D
 
 # Centreline curves (local space).
 var _curves: Array[Curve3D] = []
-var _curve_key := Vector3(-1.0, -1.0, -1.0)  # trunk_length, branch_length, branch_angle
+var _curve_key := Vector3(-1.0, -1.0, -1.0)  # trunk_length, branch_length, branch_angle + flags packed into z via sign
+var _flags_key := Vector3i(0, 0, 0)
 
 func _ensure_curves() -> void:
 	var key := Vector3(trunk_length, branch_length, branch_angle)
-	if _curves.size() == 3 and key == _curve_key:
+	var fkey := Vector3i(int(has_trunk), int(left_branch), int(right_branch))
+	if _curves.size() > 0 and key == _curve_key and fkey == _flags_key:
 		return
 	_curve_key = key
+	_flags_key = fkey
 	_build_curves()
 
 func _ready() -> void:
-	# Entry at origin; trunk continues straight; two branches peel off symmetrically.
-	entry.position    = Vector3(0.0, 0.0, 0.0)
-	exit.position     = Vector3(0.0, 0.0, trunk_length)
-	var left  := get_node_or_null("ExitLeft")  as Marker3D
-	var right := get_node_or_null("ExitRight") as Marker3D
-	var a := deg_to_rad(branch_angle)
-	var decision := Vector3(0.0, 0.0, decision_offset)
-	if left:
-		left.position = decision + Vector3(-sin(a), 0.0, cos(a)) * branch_length
-		left.rotation = Vector3(0.0, -a, 0.0)
-	if right:
-		right.position = decision + Vector3(sin(a), 0.0, cos(a)) * branch_length
-		right.rotation = Vector3(0.0, a, 0.0)
+	# Clear any stale generated collision children (editor re-runs).
+	if mesh_instance:
+		for c in mesh_instance.get_children():
+			mesh_instance.remove_child(c)
+			c.free()
 
-	exits = [exit]
-	if left:  exits.append(left)
-	if right: exits.append(right)
+	_update_markers()
+	exits.clear()
+	_ensure_curves()
 
-	await _build_meshes()
+	_build_meshes()
 
 	if Engine.is_editor_hint():
 		notify_property_list_changed()
@@ -49,26 +47,82 @@ func _ready() -> void:
 
 	await _build_collisions()
 
+func _update_markers() -> void:
+	var has_branch := left_branch or right_branch
+	var start_z: float = decision_offset if has_trunk else 0.0
+	var start := Vector3(0.0, 0.0, start_z)
+
+	# Primary exit = trunk (if present) else first enabled branch.
+	if has_trunk:
+		entry.position = Vector3.ZERO
+		exit.position = Vector3(0.0, 0.0, trunk_length)
+		exit.rotation = Vector3.ZERO
+	else:
+		entry.position = Vector3.ZERO
+		exit.position = Vector3.ZERO
+		exit.rotation = Vector3.ZERO
+
+	var left := get_node_or_null("ExitLeft") as Marker3D
+	var right := get_node_or_null("ExitRight") as Marker3D
+	var a := deg_to_rad(branch_angle)
+	var dirs := [Vector3(-sin(a), 0.0, cos(a)), Vector3(sin(a), 0.0, cos(a))]
+	if left:
+		if left_branch:
+			left.position = start + dirs[0] * branch_length
+			left.rotation = Vector3(0.0, -a, 0.0)
+			left.visible = true
+		else:
+			left.visible = false
+	if right:
+		if right_branch:
+			right.position = start + dirs[1] * branch_length
+			right.rotation = Vector3(0.0, a, 0.0)
+			right.visible = true
+		else:
+			right.visible = false
+
+	# Rebuild exits array for enabled paths.
+	exits.clear()
+	if has_trunk:
+		exits.append(exit)
+	if left_branch and left:
+		exits.append(left)
+	if right_branch and right:
+		exits.append(right)
+	# Fallback: if no exits enabled, keep the trunk exit.
+	if exits.is_empty() and exit:
+		exits.append(exit)
+
 func _build_curves() -> void:
 	_curves.clear()
-	# Trunk: straight along +Z (with slight handles for a consistent tangent).
-	var trunk := Curve3D.new()
-	trunk.add_point(Vector3.ZERO, Vector3.ZERO, Vector3(0.0, 0.0, trunk_length * 0.4))
-	trunk.add_point(Vector3(0.0, 0.0, trunk_length), Vector3(0.0, 0.0, -trunk_length * 0.4), Vector3.ZERO)
-	_curves.append(trunk)
+	var has_branch := left_branch or right_branch
+	var start_z: float = decision_offset if has_trunk else 0.0
+	var start := Vector3(0.0, 0.0, start_z)
 
-	# Branches leave the trunk axis at an angle immediately. Starting them
-	# parallel to the trunk produced nearly coincident surfaces, which made the
-	# CSG union keep internal branch walls.
+	# Trunk curve.
+	if has_trunk:
+		var trunk := Curve3D.new()
+		trunk.add_point(Vector3.ZERO, Vector3.ZERO, Vector3(0.0, 0.0, trunk_length * 0.4))
+		trunk.add_point(Vector3(0.0, 0.0, trunk_length), Vector3(0.0, 0.0, -trunk_length * 0.4), Vector3.ZERO)
+		_curves.append(trunk)
+
+	# Branch curves. Start inside the trunk (decision_offset - half radius) so
+	# the union carves a clean hole; leave at the branch angle immediately.
 	var ang := deg_to_rad(branch_angle)
 	var decision := Vector3(0.0, 0.0, decision_offset)
 	var dirs := [Vector3(-sin(ang), 0.0, cos(ang)), Vector3(sin(ang), 0.0, cos(ang))]
-	for dir in dirs:
-		var d: Vector3 = dir
-		var end := decision + d * branch_length
+	var branch_origin: Vector3 = decision if has_trunk else Vector3.ZERO
+	if left_branch:
+		var end: Vector3 = branch_origin + dirs[0] * branch_length
 		var c := Curve3D.new()
-		c.add_point(decision, Vector3.ZERO, d * (branch_length * 0.4))
-		c.add_point(end, -d * (branch_length * 0.4), Vector3.ZERO)
+		c.add_point(branch_origin, Vector3.ZERO, dirs[0] * (branch_length * 0.4))
+		c.add_point(end, -dirs[0] * (branch_length * 0.4), Vector3.ZERO)
+		_curves.append(c)
+	if right_branch:
+		var end: Vector3 = branch_origin + dirs[1] * branch_length
+		var c := Curve3D.new()
+		c.add_point(branch_origin, Vector3.ZERO, dirs[1] * (branch_length * 0.4))
+		c.add_point(end, -dirs[1] * (branch_length * 0.4), Vector3.ZERO)
 		_curves.append(c)
 
 func _nearest_curve_point(local_pos: Vector3) -> Dictionary:
@@ -95,6 +149,8 @@ func get_exit_radius(_exit_index: int = 0) -> float:
 func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var local_pos := to_local(world_pos)
 	_ensure_curves()
+	if _curves.is_empty():
+		return {"axis": global_transform.basis.z, "origin": global_position, "radius": tube_radius}
 	var info := _nearest_curve_point(local_pos)
 	return {
 		"axis":   (global_transform.basis * info["tangent"]).normalized(),
@@ -105,56 +161,73 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 func contains_point(world_pos: Vector3) -> bool:
 	var local_pos := to_local(world_pos)
 	_ensure_curves()
+	if _curves.is_empty():
+		return false
 	var info := _nearest_curve_point(local_pos)
 	return info["dist"] < tube_radius + 3.0
 
+func _opening_planes() -> Array:
+	var planes: Array = []
+	# Trunk caps.
+	if has_trunk:
+		var t0 := _curves[0].sample_baked_with_rotation(0.0)
+		planes.append([t0.origin, t0.basis.z])
+		var t1 := _curves[0].sample_baked_with_rotation(_curves[0].get_baked_length())
+		planes.append([t1.origin, -t1.basis.z])
+	# Branch caps + branch-start caps.
+	var idx := 1 if has_trunk else 0
+	for i in range(2):
+		if (i == 0 and not left_branch) or (i == 1 and not right_branch):
+			continue
+		var c := _curves[idx]
+		var ts := c.sample_baked_with_rotation(0.0)
+		planes.append([ts.origin, ts.basis.z])
+		var te := c.sample_baked_with_rotation(c.get_baked_length())
+		planes.append([te.origin, -te.basis.z])
+		idx += 1
+	return planes
+
 func _build_meshes() -> void:
-	# Clear previously generated branch meshes/collision so editor re-runs and
-	# property changes rebuild cleanly.
-	for c in get_children():
-		if c is MeshInstance3D and c.name.begins_with("BranchMesh"):
-			remove_child(c)
-			c.free()
+	# Clear previously generated collision children.
 	if mesh_instance:
 		for c in mesh_instance.get_children():
 			mesh_instance.remove_child(c)
 			c.free()
 
 	_ensure_curves()
-	var union := await _build_union_mesh()
-	if union == null:
-		return
-	if mesh_instance:
-		mesh_instance.mesh = union
-		mesh_instance.position = Vector3.ZERO
-		mesh_instance.basis = Basis.IDENTITY
-		var mat := StandardMaterial3D.new()
-		mat.vertex_color_use_as_albedo = true
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		mesh_instance.material_override = mat
 
-func _build_union_mesh() -> ArrayMesh:
-	# Build closed cylinder primitives and let CSG compute the true union
-	# surface. Primitives produce a clean union; the same union built from our
-	# swept meshes left internal branch walls behind.
+	# If no paths are enabled, nothing to build.
+	if _curves.is_empty():
+		if mesh_instance:
+			mesh_instance.mesh = null
+		return
+
+	# Build one CSG cylinder per enabled path.
 	var combiner := CSGCombiner3D.new()
 	combiner.name = "CSGUnion"
 	combiner.visible = false
 	combiner.operation = CSGShape3D.OPERATION_UNION
 
-	var trunk := CSGCylinder3D.new()
-	trunk.radius = tube_radius
-	trunk.height = trunk_length
-	trunk.sides = PipeSection.RING_SEGMENTS
-	trunk.rotation = Vector3(PI * 0.5, 0.0, 0.0)
-	trunk.position = Vector3(0.0, 0.0, trunk_length * 0.5)
-	combiner.add_child(trunk)
-
 	var ang := deg_to_rad(branch_angle)
-	var decision := Vector3(0.0, 0.0, decision_offset)
 	var dirs := [Vector3(-sin(ang), 0.0, cos(ang)), Vector3(sin(ang), 0.0, cos(ang))]
-	for dir in dirs:
-		var d: Vector3 = dir
+
+	if has_trunk:
+		var trunk := CSGCylinder3D.new()
+		trunk.radius = tube_radius
+		trunk.height = trunk_length
+		trunk.sides = PipeSection.RING_SEGMENTS
+		trunk.rotation = Vector3(PI * 0.5, 0.0, 0.0)
+		trunk.position = Vector3(0.0, 0.0, trunk_length * 0.5)
+		combiner.add_child(trunk)
+
+	var decision := Vector3(0.0, 0.0, decision_offset)
+	var start_z: float = decision_offset if has_trunk else 0.0
+	var start := Vector3(0.0, 0.0, start_z)
+	for i in range(2):
+		if (i == 0 and not left_branch) or (i == 1 and not right_branch):
+			continue
+		var d: Vector3 = dirs[i]
+		var end: Vector3 = decision + d * branch_length
 		var b := CSGCylinder3D.new()
 		b.radius = tube_radius
 		b.height = branch_length
@@ -166,7 +239,7 @@ func _build_union_mesh() -> ArrayMesh:
 		x = x.normalized()
 		var z := x.cross(y).normalized()
 		b.basis = Basis(x, y, z)
-		b.position = decision + d * (branch_length * 0.5)
+		b.position = start + d * (branch_length * 0.5)
 		combiner.add_child(b)
 
 	add_child(combiner)
@@ -181,23 +254,33 @@ func _build_union_mesh() -> ArrayMesh:
 	combiner.free()
 	if union == null:
 		push_error("Junction CSG union produced no mesh")
-		return null
-	return _strip_caps_and_color(union)
+		if mesh_instance:
+			mesh_instance.mesh = null
+		return
+	var stripped := _strip_caps_and_color(union)
+	if mesh_instance:
+		mesh_instance.mesh = stripped
+		mesh_instance.position = Vector3.ZERO
+		mesh_instance.basis = Basis.IDENTITY
+		var mat := StandardMaterial3D.new()
+		mat.vertex_color_use_as_albedo = true
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh_instance.material_override = mat
 
-func _opening_planes() -> Array:
-	# [point, outward tangent] for every mouth of the junction.
-	var planes: Array = []
-	var t0 := _curves[0].sample_baked_with_rotation(0.0)
-	planes.append([t0.origin, t0.basis.z])  # entry: outward is -tangent
-	var t1 := _curves[0].sample_baked_with_rotation(_curves[0].get_baked_length())
-	planes.append([t1.origin, -t1.basis.z])
-	for i in range(1, 3):
-		var c := _curves[i]
-		var ts := c.sample_baked_with_rotation(0.0)
-		planes.append([ts.origin, ts.basis.z])  # branch start
-		var te := c.sample_baked_with_rotation(c.get_baked_length())
-		planes.append([te.origin, -te.basis.z])  # branch end
-	return planes
+func _build_collisions() -> void:
+	if mesh_instance == null or mesh_instance.mesh == null:
+		return
+	if mesh_instance.get_child_count() == 0:
+		mesh_instance.create_trimesh_collision()
+	await get_tree().process_frame
+	if mesh_instance.get_child_count() == 0:
+		return
+	var body := mesh_instance.get_child(0) as StaticBody3D
+	if body == null or body.get_child_count() == 0:
+		return
+	var shape := body.get_child(0) as CollisionShape3D
+	if shape and shape.shape is ConcavePolygonShape3D:
+		(shape.shape as ConcavePolygonShape3D).backface_collision = true
 
 func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 	var planes := _opening_planes()
@@ -232,8 +315,6 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 			face_n = face_n.normalized()
 			var centroid := (p0 + p1 + p2) / 3.0
 
-			# Drop the flat cap at each mouth; the attached pipe provides the
-			# opening there.
 			var is_cap := false
 			for pl in planes:
 				var pp: Vector3 = pl[0]
@@ -247,10 +328,9 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 			if is_cap:
 				continue
 
-			# Colour by nearest branch centreline.
 			var best_c := 0
 			var best_d := INF
-			for i in range(3):
+			for i in range(_curves.size()):
 				var off: float = _curves[i].get_closest_offset(centroid)
 				var cp: Vector3 = _curves[i].sample_baked(off)
 				var d := centroid.distance_to(cp)
@@ -261,11 +341,10 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 			for k in [i0, i1, i2]:
 				out_idx.append(out_verts.size())
 				out_verts.append(verts[k])
-				# CSG output faces outward; the pipe is viewed from inside.
 				var n: Vector3 = norms[k] if k < norms.size() else face_n
 				out_norms.append(-n)
 				out_uvs.append(uvs[k] if k < uvs.size() else Vector2.ZERO)
-				out_cols.append(colors[best_c])
+				out_cols.append(colors[best_c] if best_c < colors.size() else Color.WHITE)
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -277,18 +356,3 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
-
-func _build_collisions() -> void:
-	if mesh_instance == null or mesh_instance.mesh == null:
-		return
-	if mesh_instance.get_child_count() == 0:
-		mesh_instance.create_trimesh_collision()
-	await get_tree().process_frame
-	if mesh_instance.get_child_count() == 0:
-		return
-	var body := mesh_instance.get_child(0) as StaticBody3D
-	if body == null or body.get_child_count() == 0:
-		return
-	var shape := body.get_child(0) as CollisionShape3D
-	if shape and shape.shape is ConcavePolygonShape3D:
-		(shape.shape as ConcavePolygonShape3D).backface_collision = true
