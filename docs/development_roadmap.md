@@ -140,7 +140,8 @@ renders above vehicle in rest zones).
 
 **Status:** First pass implemented. Enemy vehicles use the same pipe gravity/physics and chase
 the player along the tube. A spawner places enemies at sections behind the player every 4
-seconds (up to 6 concurrent). Archetypes and topology-driven ambushes are still pending.
+seconds (up to 6 concurrent). Enemies don't block the player (collision layer separation).
+Archetypes and topology-driven ambushes are still pending.
 
 Deliverables:
 1. **[Done]** Enemy vehicle scene using the same gravity/physics.
