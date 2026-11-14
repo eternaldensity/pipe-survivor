@@ -51,9 +51,9 @@ Deliverables (spec §6):
    and `contains_point` updated.
 2. **[Done]** `PipeNetwork.add_section(packed, props, from_section, from_exit)`; branch
    attachment no longer assumes `sections.back()`.
-3. **[Partial]** `JunctionPipeSection`: radius, trunk length, branch angle, branch length,
-   and decision-offset exports; Y-split with trunk + two branches (trident). Still missing:
-   blend length, `has_trunk`, selectable left/right branches.
+3. **[Done]** `JunctionPipeSection`: radius, trunk length, branch angle, branch length,
+   decision offset, `has_trunk`, `left_branch`, `right_branch` exports. Supports exit-branch,
+   Y-split, and trident topologies. Exit markers and centrelines follow the enabled set.
 4. **[Done]** Centrelines first: `Curve3D` cubic Bezier per path; `get_tube_properties` uses
    `get_closest_offset`; exit markers at endpoints with matching orientation.
 5. **[Done]** Mesh: trunk/branch `CSGCylinder3D` primitives combined with a `CSGCombiner3D`
@@ -61,6 +61,12 @@ Deliverables (spec §6):
    resulting mesh drives both rendering and trimesh collision. Verified zero internal-wall
    triangles and a drivable junction. Future optimisation: cache/bake the union mesh and reduce
    its triangle count (currently ~530).
+
+6. **[Open]** Blend length / approach zone: `decision_offset` controls where branches diverge
+   but there is no smooth transition mesh yet (branches start abruptly at the decision point).
+
+7. **[Open]** Wall-colour shader: per-fragment nearest-exit colour mix for a blended mesh.
+   Currently branches are tinted via vertex colours on the union mesh.
 6. **[Partial]** Branch identification: branches have distinct colours via material overrides.
    Still missing: the per-fragment Voronoi wall-colour shader for a blended mesh.
 7. **[Done]** Junction integrated into `main.gd`; harness drives through a branch.
