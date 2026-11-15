@@ -199,8 +199,17 @@ Deliverables:
 **Status:** First pass implemented. Main menu, pause menu (Esc), game-over/victory overlay
 with restart (R), and an audio manager (with generated tones) are in place. The main scene
 is now the main menu, transitioning to the game on "Start Game". In-memory and disk mesh
-caching is implemented. Procedural level generation replaces hand-authored levels. Export
-templates are not available in this environment.
+caching is implemented. Procedural level generation (seeded, validated, with difficulty
+progression and junctions) replaces hand-authored levels. Export templates are not
+available in this environment.
+
+### Level Generation (new subsystem)
+- **LevelGenerator**: seeded RNG, graph-based generation, validation, network building.
+- **SectionGraph**: nodes with type, params, exits, parent, depth.
+- **Difficulty tiers**: radius narrows, bends sharpen, junctions appear as depth increases.
+- **Content placement**: rest zones, signs, enemies, boss, spawner.
+- **Validation**: reachability, radius continuity, boss exists, min depth.
+- **Harness**: 587 checks pass on generated levels.
 
 Deliverables:
 1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
