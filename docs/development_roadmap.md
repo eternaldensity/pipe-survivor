@@ -176,15 +176,16 @@ Deliverables:
 
 **Status:** Boss vehicle uses a Lorenz attractor to drive its movement (scaled to the
 arena). The boss fires projectiles toward the player every 3 seconds (single, burst,
-charge patterns). Spell zones damage both enemies and the boss. A GameManager tracks
-player/boss health and detects win/lose. Enemy contact damage is implemented. A GameHUD
-displays player health, boss health, and win/lose status with restart on R.
+charge, spiral, area-denial). Spell zones damage both enemies and the boss. A GameManager
+tracks player/boss health and detects win/lose. Enemy contact damage is implemented.
+A GameHUD displays player health, boss health, and win/lose status with restart on R.
+Boss arena is a dedicated widening section (radius 10→30) with seam continuity.
 
 Deliverables:
-1. **[Partial]** Boss scene with attractor-driven movement and projectile attacks
-   (single, burst, charge). More varied attack patterns pending.
-2. **[Partial]** Boss arena: the trunk path ends in a widening section (radius 10→20).
-   A dedicated chamber is still pending.
+1. **[Done]** Boss scene with attractor-driven movement and 5 projectile attack
+   patterns (single, burst, charge, spiral, area-denial).
+2. **[Partial]** Boss arena: dedicated widening section (radius 10→30) with seam
+   continuity. A fully enclosed chamber is still pending.
 3. **[Done]** Win/lose flow: GameManager detects player death and boss death.
    GameHUD displays health bars and win/lose status with restart on R.
 
