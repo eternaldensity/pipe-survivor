@@ -31,7 +31,7 @@ environment = SubResource("Environment_abc123")
 transform = Transform3D(0.95146346, 0, -0.30776176, 0, 1, 0, 0.30776176, 0, 0.95146346, 2.3548903, -1.2760048, 6.3048677)
 
 [node name="Vehicle" type="CharacterBody3D" parent="." unique_id=2007903113 node_paths=PackedStringArray("network")]
-transform = Transform3D(4.371139e-08, 1, -8.742278e-08, 1, -4.371139e-08, 0, -3.821371e-15, -8.742278e-08, -1, 9.25, 0, -40)
+transform = Transform3D(4.371139e-08, 1, -8.742278e-08, 1, -4.371139e-08, 0, -3.821371e-15, -8.742278e-08, -1, 0, 0, -40)
 script = ExtResource("1_ig7tw")
 network = NodePath("../PipeNetwork")
 
