@@ -68,6 +68,9 @@ func _spawn_chaser() -> void:
 	enemy.enemy_type = EnemyVehicle.EnemyType.CHASER
 	enemy.network = network
 	enemy.target = target
+	# Chasers are weak to high-rho (volatile) sigils.
+	enemy.weakness_family = "Lorenz"
+	enemy.weakness_multiplier = 1.5
 	var parent := get_parent()
 	if parent:
 		parent.add_child(enemy)
@@ -98,6 +101,10 @@ func _spawn_ambushes_at_junction(j: JunctionPipeSection) -> void:
 			enemy.enemy_type = EnemyVehicle.EnemyType.AMBUSHER
 			enemy.network = network
 			enemy.target = target
+			# Ambushers are resistant but weak to stable (low-rho) sigils.
+			enemy.weakness_family = "Lorenz"
+			enemy.weakness_multiplier = 2.0
+			enemy.resistance = 0.5
 			var parent := get_parent()
 			if parent:
 				parent.add_child(enemy)

@@ -21,8 +21,10 @@ var gravity: float = 25.0
 var _ambush_active: bool = false
 var _activation_distance: float = 40.0
 
-# Sigil weakness (Phase 4 integration hook).
-@export var weakness_sigil: String = ""
+# Sigil weakness (Phase 4/5 integration).
+@export var weakness_family: String = ""  # attractor family this enemy is weak to (empty = none)
+@export var weakness_multiplier: float = 2.0  # damage multiplier when hit by matching family
+@export var resistance: float = 1.0  # base damage resistance (lower = tougher)
 
 func _ready() -> void:
 	match enemy_type:
@@ -105,7 +107,10 @@ func _flatten(delta: float, up: Vector3) -> void:
 	var target := Basis.looking_at(fwd, up)
 	global_transform.basis = global_transform.basis.slerp(target, delta * 14.0)
 
-func take_damage(amount: float) -> void:
-	health -= amount
+func take_damage(amount: float, spell_family: String = "") -> void:
+	var dmg := amount * resistance
+	if weakness_family != "" and spell_family == weakness_family:
+		dmg *= weakness_multiplier
+	health -= dmg
 	if health <= 0.0:
 		queue_free()

@@ -7,7 +7,6 @@ extends CanvasLayer
 @onready var info: Label = $PanelContainer/VBoxContainer/Info
 @onready var preset_list: VBoxContainer = $PanelContainer/VBoxContainer/PresetList
 @onready var param_box: VBoxContainer = $PanelContainer/VBoxContainer/ParamBox
-@onready var preview_container: SubViewportContainer = $PanelContainer/VBoxContainer/PreviewContainer
 
 var vehicle: Vehicle = null
 var presets: Array[PresetSigil] = []
@@ -83,15 +82,13 @@ func _build_param_sliders() -> void:
 	param_box.add_child(slider_beta)
 
 func _build_preview() -> void:
-	if preview_container == null:
-		return
+	# Create an attractor preview as a child of the panel.
 	preview = AttractorPreview.new()
-	preview.position = Vector3.ZERO
-	# Add to the container's viewport if it's a SubViewportContainer.
-	# For simplicity, add as a child of the panel.
+	preview.visible = false
+	preview.scale = Vector3(0.5, 0.5, 0.5)
+	# Offset it to the right side of the panel.
+	preview.position = Vector3(0.0, 0.0, 0.0)
 	panel.add_child(preview)
-	preview.position = Vector3(0, 0, 0)
-	preview.scale = Vector3(0.3, 0.3, 0.3)
 
 func _on_preset_selected(p: PresetSigil) -> void:
 	selected_preset = p
@@ -155,7 +152,7 @@ func bind_vehicle(v: Vehicle) -> void:
 func _process(_delta: float) -> void:
 	if vehicle:
 		panel.visible = vehicle.rest_zone_inside
-		if panel.visible and preview:
-			preview.visible = true
-		elif preview:
-			preview.visible = false
+		if preview:
+			preview.visible = vehicle.rest_zone_inside
+			if vehicle.rest_zone_inside:
+				preview.update_preview()
