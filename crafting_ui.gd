@@ -100,9 +100,9 @@ func _build_preview() -> void:
 
 	# Camera looking at origin.
 	preview_camera = Camera3D.new()
-	preview_camera.position = Vector3(0, 0, 4)
-	preview_camera.look_at(Vector3.ZERO)
 	preview_viewport.add_child(preview_camera)
+	preview_camera.position = Vector3(0, 0, 4)
+	preview_camera.look_at_from_position(preview_camera.position, Vector3.ZERO, Vector3.UP)
 
 	# Attractor preview mesh.
 	preview = AttractorPreview.new()

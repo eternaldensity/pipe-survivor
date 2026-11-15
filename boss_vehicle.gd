@@ -1,26 +1,28 @@
-# boss_vehicle.gd  (Phase 6 — first pass)
+# boss_vehicle.gd  (Phase 6)
 class_name BossVehicle
 extends CharacterBody3D
 
 @export var network: PipeNetwork
-var attractor: Attractor = Attractor.new()
-@export var health: float = 50.0
-@export var speed: float = 8.0
-@export var arena_radius: float = 40.0
 @export var arena_center: Vector3 = Vector3.ZERO
+@export var target: Node3D = null
+
+var attractor: Attractor = Attractor.new()
+var health: float = 50.0
+var max_health: float = 50.0
+var speed: float = 8.0
+var arena_radius: float = 40.0
 
 var tube_origin := Vector3.ZERO
 var tube_axis := Vector3(0.0, 0.0, 1.0)
 var tube_radius := 10.0
 
 var _attractor_pos: Vector3 = Vector3(0.1, 0.1, 0.1)
-var _attractor_timer: float = 0.0
 var _attractor_scale: float = 0.5
 
 # Attack state.
 var _attack_cooldown: float = 3.0
 var _attack_timer: float = 0.0
-@export var target: Node3D = null
+var _attack_pattern: int = 0  # 0=single, 1=burst, 2=charge
 
 func _ready() -> void:
 	_attractor_pos = Vector3(0.1, 0.1, 0.1)
@@ -44,15 +46,11 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity += outward * 25.0 * delta
 
-	# Attractor-driven movement: advance the attractor position, then steer
-	# toward the corresponding point in the arena.
+	# Attractor-driven movement.
 	_attractor_pos = attractor.step(_attractor_pos, delta * 2.0)
-	# Map attractor coords to arena position (scale + offset).
-	var target := arena_center + _attractor_pos * _attractor_scale
-	# Project target onto the tube wall.
-	var to_target := target - global_position
+	var target_pos := arena_center + _attractor_pos * _attractor_scale
+	var to_target := target_pos - global_position
 	var desired := to_target.normalized() * speed
-	# Keep on the tube surface: remove radial component.
 	var radial_vel := velocity.dot(outward) * outward
 	var surface_vel := velocity - radial_vel
 	surface_vel = surface_vel.move_toward(desired, 20.0 * delta)
@@ -65,7 +63,8 @@ func _physics_process(delta: float) -> void:
 	_attack_timer += delta
 	if _attack_timer >= _attack_cooldown and target != null:
 		_attack_timer = 0.0
-		_fire_projectile()
+		_attack_pattern = (_attack_pattern + 1) % 3
+		_execute_attack()
 
 func _outward_from(props: Dictionary) -> Vector3:
 	var axis: Vector3 = props["axis"]
@@ -91,22 +90,56 @@ func take_damage(amount: float) -> void:
 	if health <= 0.0:
 		queue_free()
 
-func _fire_projectile() -> void:
+func _execute_attack() -> void:
+	match _attack_pattern:
+		0:
+			_fire_single()
+		1:
+			_fire_burst()
+		2:
+			_fire_charge()
+
+func _fire_single() -> void:
 	if target == null:
 		return
+	_spawn_projectile(target.global_position)
+
+func _fire_burst() -> void:
+	if target == null:
+		return
+	# Fire 3 projectiles in a spread.
+	for i in range(3):
+		var offset_angle := (i - 1) * 15.0  # -15, 0, +15 degrees
+		var dir := (target.global_position - global_position).normalized()
+		var right := dir.cross(Vector3.UP).normalized()
+		var spread_dir := dir.rotated(Vector3.UP, deg_to_rad(offset_angle))
+		_spawn_projectile(global_position + spread_dir * 20.0, spread_dir)
+
+func _fire_charge() -> void:
+	if target == null:
+		return
+	# Boss charges toward the player: boost speed briefly.
+	speed = 20.0
+	# Reset speed after a short delay.
+	var timer := get_tree().create_timer(1.0)
+	timer.timeout.connect(func(): speed = 8.0)
+	_spawn_projectile(target.global_position)
+
+func _spawn_projectile(aim_pos: Vector3, aim_dir: Vector3 = Vector3.ZERO) -> void:
 	var proj = load("res://BossProjectile.tscn").instantiate() as BossProjectile
 	if proj == null:
 		return
 	proj.network = network
 	proj._target = target
-	var dir := (target.global_position - global_position).normalized()
+	var dir := aim_dir if aim_dir.length_squared() > 1e-4 else (aim_pos - global_position).normalized()
+	proj.damage = 10.0
 	var parent := get_parent()
 	if parent:
 		parent.add_child(proj)
 		proj.global_position = global_position
-		# Orient toward target.
 		if dir.length_squared() > 1e-4:
 			var up := Vector3.UP
 			if absf(dir.dot(up)) > 0.99:
 				up = Vector3.RIGHT
-			proj.look_at(target.global_position, up)
+			var basis := Basis.looking_at(dir, up)
+			proj.global_transform = Transform3D(basis, proj.global_position)
