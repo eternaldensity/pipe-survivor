@@ -216,7 +216,8 @@ available in this environment.
 - **Testing**: `tests/run.sh` → 917 checks (42 sections traversed, 0 radius error);
   `tests/run_lighting.sh` → 173 checks (interior normals and seams);
   `tests/run_visibility.sh` → 171 checks, 2976 rays (mesh presence, triangle
-  winding vs. inward normals, and wall enclosure from the centreline).
+  winding so the interior is the front face under Godot's clockwise convention,
+  and wall enclosure from the centreline).
   All three pass on generated levels.
 
 Deliverables:
@@ -239,6 +240,11 @@ Deliverables:
 - Keep `tests/run_lighting.sh` green on every commit (verifies pipe interior normals).
 - Keep `tests/run_visibility.sh` green on every commit (verifies every section renders
   from inside and encloses its centreline).
+  Note: Godot treats **clockwise** winding as the front face, so interior-facing
+  triangles need their cross product pointing *away* from the inward normal.
+- Optional visual check: `xvfb-run -a godot --path . --script tests/render_probe.gd`
+  renders screenshots from inside a straight, bend, junction, rest zone and arena
+  into `/tmp/opencode/`.
 - Extend the harness with each new subsystem (junction traversal, spell cast, enemy spawn).
 - Preserve any discovered failure as a replayable case under `tests/cases/`.
 - Run the harness in CI once a runner is available.
