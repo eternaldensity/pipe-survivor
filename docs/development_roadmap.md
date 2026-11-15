@@ -197,13 +197,19 @@ Deliverables:
 
 **Goal:** Small, shippable package.
 
-Deliverables:
-1. One tube-network "floor": handful of spells, enemy types, one boss.
-2. Main menu, pause, game-over, basic audio.
-3. Performance pass (instancing, collision cost).
-4. Build/export for desktop.
+**Status:** First pass implemented. Main menu, pause menu (Esc), game-over/victory overlay
+with restart (R), and an audio manager (placeholder players) are in place. The main scene
+is now the main menu, transitioning to the game on "Start Game". Performance pass and
+export are still pending.
 
-**Exit criteria:** A new player can install and complete the slice without developer help.
+Deliverables:
+1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
+   Network, spells, enemies, and boss are implemented. More polish needed.
+2. **[Done]** Main menu, pause (Esc), game-over/victory overlay with restart (R).
+3. **[Partial]** Basic audio: AudioManager with engine/collision/spell players (placeholder
+   streams; real audio files needed).
+4. **[Open]** Performance pass (instancing, collision cost).
+5. **[Open]** Build/export for desktop.
 
 ---
 
