@@ -347,6 +347,8 @@ func _build_network() -> void:
 	# Let async section _ready calls (junction CSG) settle.
 	await get_tree().process_frame
 	await get_tree().process_frame
+	# Seal the start and every dead end / unused junction mouth.
+	network.cap_open_ends()
 
 func _scene_for_type(type: SectionType) -> PackedScene:
 	match type:
