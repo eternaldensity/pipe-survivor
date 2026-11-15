@@ -20,12 +20,27 @@ var _attractor_pos: Vector3 = Vector3(0.1, 0.1, 0.1)
 var _attractor_scale: float = 0.5
 
 # Attack state.
-var _attack_cooldown: float = 3.0
+var _attack_cooldown: float = 2.5
 var _attack_timer: float = 0.0
-var _attack_pattern: int = 0  # 0=single, 1=burst, 2=charge
+var _attack_pattern: int = 0  # 0=single, 1=burst, 2=charge, 3=spiral, 4=area_denial
+
+# Health bar.
+var _health_bar: Label3D = null
 
 func _ready() -> void:
 	_attractor_pos = Vector3(0.1, 0.1, 0.1)
+	# Health bar above boss.
+	_health_bar = Label3D.new()
+	_health_bar.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_health_bar.font_size = 48
+	_health_bar.position = Vector3(0.0, 3.0, 0.0)
+	_health_bar.modulate = Color(1.0, 0.3, 0.3)
+	add_child(_health_bar)
+	_update_health_bar()
+
+func _update_health_bar() -> void:
+	if _health_bar:
+		_health_bar.text = "BOSS %.0f/%.0f" % [health, max_health]
 
 func _physics_process(delta: float) -> void:
 	if network == null:
@@ -87,7 +102,9 @@ func _flatten(delta: float, up: Vector3) -> void:
 
 func take_damage(amount: float) -> void:
 	health -= amount
+	_update_health_bar()
 	if health <= 0.0:
+		_health_bar.visible = false
 		queue_free()
 
 func _execute_attack() -> void:
@@ -98,6 +115,10 @@ func _execute_attack() -> void:
 			_fire_burst()
 		2:
 			_fire_charge()
+		3:
+			_fire_spiral()
+		4:
+			_fire_area_denial()
 
 func _fire_single() -> void:
 	if target == null:
@@ -143,3 +164,22 @@ func _spawn_projectile(aim_pos: Vector3, aim_dir: Vector3 = Vector3.ZERO) -> voi
 				up = Vector3.RIGHT
 			var basis := Basis.looking_at(dir, up)
 			proj.global_transform = Transform3D(basis, proj.global_position)
+
+func _fire_spiral() -> void:
+	if target == null:
+		return
+	# Fire 5 projectiles in a spiral pattern.
+	for i in range(5):
+		var angle := i * 72.0  # 72 degrees apart
+		var dir := (target.global_position - global_position).normalized()
+		var spread_dir := dir.rotated(Vector3.UP, deg_to_rad(angle))
+		_spawn_projectile(global_position + spread_dir * 20.0, spread_dir)
+
+func _fire_area_denial() -> void:
+	if target == null:
+		return
+	# Fire 4 projectiles in a cross pattern around the boss.
+	for i in range(4):
+		var angle := i * 90.0
+		var dir := (Vector3.FORWARD).rotated(Vector3.UP, deg_to_rad(angle))
+		_spawn_projectile(global_position + dir * 15.0, dir)

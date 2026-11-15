@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://bossarena001"]
+
+[ext_resource type="Script" path="res://boss_arena.gd" id="1_ba"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ba"]
+top_radius = 30.0
+bottom_radius = 30.0
+height = 120.0
+radial_segments = 32
+cap_top = false
+cap_bottom = false
+
+[node name="BossArena" type="Node3D"]
+script = ExtResource("1_ba")
+entry_radius = 30.0
+exit_radius = 30.0
+length = 120.0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 0, 0)
+mesh = SubResource("CylinderMesh_ba")
+
+[node name="Entry" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -60)
+
+[node name="Exit" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 60)
+
+[node name="Area3D" type="Area3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D"]
