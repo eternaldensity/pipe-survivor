@@ -25,7 +25,13 @@ func _process(_delta: float) -> void:
 		game_over = true
 		game_over_signal.emit()
 		print("GAME OVER")
+		# Stop player movement.
+		if player:
+			player.set_physics_process(false)
 	if boss and not is_instance_valid(boss):
 		victory = true
 		victory_signal.emit()
 		print("VICTORY")
+		# Stop player movement.
+		if player:
+			player.set_physics_process(false)

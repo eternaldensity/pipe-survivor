@@ -23,6 +23,7 @@ var _attractor_scale: float = 0.5
 var _attack_cooldown: float = 2.5
 var _attack_timer: float = 0.0
 var _attack_pattern: int = 0  # 0=single, 1=burst, 2=charge, 3=spiral, 4=area_denial
+var _phase: int = 1  # 1 = normal, 2 = enraged (health < 50%)
 
 # Health bar.
 var _health_bar: Label3D = null
@@ -103,6 +104,14 @@ func _flatten(delta: float, up: Vector3) -> void:
 func take_damage(amount: float) -> void:
 	health -= amount
 	_update_health_bar()
+	# Phase transition at 50% health.
+	if _phase == 1 and health <= max_health * 0.5:
+		_phase = 2
+		_attack_cooldown = 1.5
+		speed = 12.0
+		_attractor_scale = 0.8
+		if _health_bar:
+			_health_bar.modulate = Color(1.0, 0.1, 0.1)
 	if health <= 0.0:
 		_health_bar.visible = false
 		queue_free()
