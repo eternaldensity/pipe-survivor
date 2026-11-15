@@ -57,6 +57,7 @@ func _ready() -> void:
 	# Phase 6: Boss in the arena.
 	var boss = load("res://BossVehicle.tscn").instantiate()
 	boss.network = network
+	boss.target = $Vehicle
 	boss.arena_center = arena_section.entry.global_position + arena_section.global_transform.basis.z * 100.0
 	add_child(boss)
 	boss.global_position = boss.arena_center
@@ -87,3 +88,7 @@ func _ready() -> void:
 	# Phase 6: Game manager (win/lose).
 	var gm = GameManager.new()
 	add_child(gm)
+
+	# Phase 6/7: Game HUD.
+	var hud = load("res://GameHUD.tscn").instantiate()
+	add_child(hud)
