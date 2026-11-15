@@ -135,15 +135,20 @@ func _nearest_curve_point(local_pos: Vector3) -> Dictionary:
 	var best_dist := INF
 	var best_point := Vector3.ZERO
 	var best_tan := Vector3(0.0, 0.0, 1.0)
-	for c in _curves:
+	var best_idx := -1
+	for i in range(_curves.size()):
+		var c := _curves[i]
 		var off := c.get_closest_offset(local_pos)
 		var tr := c.sample_baked_with_rotation(off)
 		var pt := tr.origin
 		var d := local_pos.distance_to(pt)
-		if d < best_dist:
+		# Prefer the trunk (first curve) on ties to avoid switching to a
+		# branch when the vehicle is going straight through the junction.
+		if best_idx < 0 or d < best_dist - 0.5 or (absf(d - best_dist) <= 0.5 and i < best_idx):
 			best_dist = d
 			best_point = pt
 			best_tan = -tr.basis.z
+			best_idx = i
 	return {"point": best_point, "tangent": best_tan, "dist": best_dist}
 
 func get_entry_radius() -> float:
