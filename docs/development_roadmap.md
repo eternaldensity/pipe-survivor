@@ -122,8 +122,7 @@ visible before junctions.
 The vehicle casts on `ui_accept` (Enter/Space) with a 2s cooldown. The zone applies the
 attractor derivative as a velocity nudge to bodies inside for 5s. Preset sigils (3 presets)
 are selectable via number keys 1/2/3 and configure the cast attractor. An `AttractorPreview`
-node renders the Lorenz shape as a line strip above the vehicle in rest zones. Full crafting
-UI integration (tuning sliders connected to cast) is still pending.
+renders in a SubViewport inside the crafting UI. Crafting sliders sync to vehicle spell params.
 
 Deliverables:
 1. **[Done]** Attractor evaluation (RK4) for Lorenz in GDScript, bounded parameters.
