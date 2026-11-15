@@ -160,7 +160,11 @@ Deliverables:
    at untraveled exits.
 4. **[Partial]** Spawner: places chasers behind the player, ambushers at junctions. Faster-
    from-behind logic still pending.
-5. **[Open]** At least two archetypes that make sigil shape matter (spec §2.5).
+5. **[Partial]** Enemy archetypes that make sigil shape matter (spec §2.5).
+   Chasers are weak to volatile (high-rho) sigils; ambushers are weak to stable
+   (low-rho) sigils. Damage multiplier is applied when the spell's rho matches
+   the enemy's weakness threshold. Full geometric feature matching (lobe count,
+   symmetry, etc.) is still pending.
 
 **Exit criteria:** Horde spawns and chases; player can survive ~60s with the Phase 4 spell.
 
