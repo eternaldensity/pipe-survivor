@@ -81,6 +81,10 @@ func _process(delta: float) -> void:
 	if _speed_label:
 		var spd := velocity.length()
 		_speed_label.text = "Speed: %.1f%s" % [spd, "  [REST]" if rest_zone_inside else ""]
+	# Engine sound.
+	var audio := _find_audio_manager()
+	if audio:
+		audio.play_engine(velocity.length())
 	if _rest_label:
 		_rest_label.visible = rest_zone_inside
 	if _attractor_preview:
@@ -156,6 +160,10 @@ func _physics_process(delta: float) -> void:
 		if parent:
 			parent.add_child(zone)
 			zone.global_position = zone.zone_centre
+			# Play spell sound.
+			var audio := _find_audio_manager()
+			if audio:
+				audio.play_spell()
 
 	# ── Rest zone detection ───────────────────────────────────────────────
 	var in_rest := false
@@ -228,6 +236,15 @@ func _physics_process(delta: float) -> void:
 	_flatten_to_surface(inward, delta)
 
 	move_and_slide()
+
+func _find_audio_manager() -> AudioManager:
+	var tree := get_tree()
+	if tree == null or tree.current_scene == null:
+		return null
+	for child in tree.current_scene.get_children():
+		if child is AudioManager:
+			return child as AudioManager
+	return null
 
 func _flatten_to_surface(up: Vector3, delta: float) -> void:
 	var fwd := -global_transform.basis.z
