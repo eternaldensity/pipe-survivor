@@ -128,17 +128,16 @@ Deliverables:
 1. **[Done]** Attractor evaluation (RK4) for Lorenz in GDScript, bounded parameters.
 2. **[Done]** Vector-field zone spell: region applies attractor derivative as velocity nudge
    to entities for N seconds; fires from vehicle down the tube.
-3. **[Partial]** Live preview of attractor shape: `AttractorPreview` node renders the
-   Lorenz shape as a line strip above the vehicle in rest zones. Full crafting-UI
-   integration pending.
+3. **[Done]** Live preview of attractor shape: `AttractorPreview` renders in a SubViewport
+   inside the crafting UI panel.
 4. **[Done]** Preset sigils ("cards") as starting spells; name → seeded sigil (spec §3.6).
-   Presets are selectable via number keys and configure the cast attractor. Spell zones
-   deal damage to enemies, with bonus damage when the spell's attractor family matches
-   the enemy's weakness. Full crafting UI integration still pending.
+   Presets are selectable via number keys and configure the cast attractor. Crafting UI
+   sliders sync to vehicle spell params. Spell zones deal damage to enemies with
+   sigil-shape-based bonus damage.
 
 **Exit criteria:** Player can cast a vector-field zone that affects a test projectile/debris;
-shape preview renders. **Partially met** (cast works and affects vehicle velocity; preview
-renders above vehicle in rest zones).
+shape preview renders. **Met** (cast works and affects vehicle velocity; preview renders
+in the crafting UI).
 
 ---
 
@@ -146,24 +145,26 @@ renders above vehicle in rest zones).
 
 **Goal:** Survivors-like pressure from the network topology.
 
-**Status:** Enemy archetypes (chaser + ambusher) and topology-driven ambushes implemented.
-Chasers are fast (speed 15, health 2) and always chase. Ambushers are slow (speed 8, health 4)
-and wait until the player is within 40 units, then activate. When the player passes a
-junction, ambushers spawn at untraveled exits. A `weakness_sigil` property is reserved for
-Phase 4 spell integration.
+**Status:** Enemy archetypes (chaser, ambusher, tank) and topology-driven ambushes implemented.
+Chasers are fast (speed 15, health 2) and weak to volatile (high-rho, high-lobe) sigils.
+Ambushers are slow (speed 8, health 4) and weak to stable (low-rho, high-symmetry) sigils.
+Tanks are slow (speed 5, health 8) and weak to elongated (high aspect ratio) sigils.
+When the player passes a junction, ambushers spawn at untraveled exits. Spell zones deal
+bonus damage based on sigil shape features (lobe count, symmetry, aspect ratio).
 
 Deliverables:
 1. **[Done]** Enemy vehicle scene using the same gravity/physics.
-2. **[Done]** Enemy archetypes: chaser and ambusher with distinct stats and behaviour.
+2. **[Done]** Enemy archetypes: chaser, ambusher, and tank with distinct stats, visuals,
+   and behaviour.
 3. **[Done]** Topology-driven ambushes: when the player passes a junction, ambushers spawn
    at untraveled exits.
-4. **[Partial]** Spawner: places chasers behind the player, ambushers at junctions. Faster-
-   from-behind logic still pending.
+4. **[Partial]** Spawner: places chasers behind the player, ambushers at junctions, and
+   tanks occasionally. Faster-from-behind logic still pending.
 5. **[Partial]** Enemy archetypes that make sigil shape matter (spec §2.5).
-   Chasers are weak to volatile (high-rho) sigils; ambushers are weak to stable
-   (low-rho) sigils. Damage multiplier is applied when the spell's rho matches
-   the enemy's weakness threshold. Full geometric feature matching (lobe count,
-   symmetry, etc.) is still pending.
+   Chasers are weak to volatile (high-rho) sigils with high lobe count; ambushers are
+   weak to stable (low-rho) sigils with high symmetry; tanks are weak to elongated
+   (high aspect ratio) sigils. Full geometric feature matching (lobe count, symmetry,
+   etc.) is implemented via `Attractor.compute_shape_features()`.
 
 **Exit criteria:** Horde spawns and chases; player can survive ~60s with the Phase 4 spell.
 
