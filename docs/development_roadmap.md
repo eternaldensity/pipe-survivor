@@ -80,9 +80,8 @@ Deliverables (spec §6):
 
 8. **[Done]** Mesh caching: built meshes are cached in a static dictionary keyed by junction
    parameters, so identical junctions reuse the same mesh.
-6. **[Partial]** Branch identification: branches have distinct colours via material overrides.
-   Still missing: the per-fragment Voronoi wall-colour shader for a blended mesh.
-7. **[Done]** Junction integrated into `main.gd`; harness drives through a branch.
+
+9. **[Done]** Junction integrated into `main.gd`; harness drives through a branch.
 
 **Exit criteria:** A junction scene loads, vehicle can choose either branch, snapping/collision
 valid, `tests/run.sh` extended with a junction traversal case passes. Seam radius continuity is
