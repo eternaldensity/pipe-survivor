@@ -212,12 +212,23 @@ available in this environment.
 - **Content placement**: rest zones, signs, enemies, boss, spawner.
 - **Validation**: reachability, radius continuity, boss exists, min depth.
 - **Continuity**: each section's entry radius matches its parent's exit radius exactly;
-  bends use a constant radius equal to that seam radius.
+  bends use a constant radius equal to that seam radius. Junction branch tubes are
+  built along the exit-marker axis with the cap centre on the marker, so seams meet
+  without lateral gaps or tilted planes.
+- **Sealed ends**: every mouth with no attached section (level start, dead ends,
+  unused junction exits, arena far end) is closed by an `EndCap` mesh + collision.
 - **Testing**: `tests/run.sh` → 917 checks (42 sections traversed, 0 radius error);
   `tests/run_lighting.sh` → 173 checks (interior normals and seams);
-  `tests/run_visibility.sh` → 171 checks, 2976 rays (mesh presence, triangle
+  `tests/run_visibility.sh` → 323 checks, 2976 rays (mesh presence, triangle
   winding so the interior is the front face under Godot's clockwise convention,
-  and wall enclosure from the centreline).
+  wall enclosure, seam alignment/gap/radius between connected sections, and
+  sealed (capped) open ends).
+- **Dead ends**: every mouth without a child section — level start, branch dead
+  ends, unused junction exits, arena far end — gets an `EndCap` mesh and
+  collision, so no open pipe end shows the void.
+- **Junction seams**: branch tubes are built along the exit-marker axis with
+  their far cap centre exactly on the marker, so attached sections meet the
+  junction without lateral gaps or a tilted seam plane.
   All three pass on generated levels.
 
 Deliverables:
@@ -239,12 +250,13 @@ Deliverables:
 - Keep `tests/run.sh` green on every commit.
 - Keep `tests/run_lighting.sh` green on every commit (verifies pipe interior normals).
 - Keep `tests/run_visibility.sh` green on every commit (verifies every section renders
-  from inside and encloses its centreline).
+  from inside, encloses its centreline, seams meet without gaps/misalignment, and
+  all unused pipe ends are capped).
   Note: Godot treats **clockwise** winding as the front face, so interior-facing
   triangles need their cross product pointing *away* from the inward normal.
 - Optional visual check: `xvfb-run -a godot --path . --script tests/render_probe.gd`
-  renders screenshots from inside a straight, bend, junction, rest zone and arena
-  into `/tmp/opencode/`.
+  renders screenshots from inside a straight, bend, junction, rest zone and arena,
+  plus junction seams and a sealed dead end, into `/tmp/opencode/`.
 - Extend the harness with each new subsystem (junction traversal, spell cast, enemy spawn).
 - Preserve any discovered failure as a replayable case under `tests/cases/`.
 - Run the harness in CI once a runner is available.
