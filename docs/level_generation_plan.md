@@ -254,6 +254,9 @@ If validation fails, regenerate with seed+1 (up to 10 retries).
 - `test_level_generator.gd`: generate N seeds, assert validity, no crashes.
 - `test_level_traversal.gd`: drive through each generated level, assert reachability.
 - `test_level_radius.gd`: assert radius continuity at all seams.
+- `tests/visibility_harness.gd`: every section has a mesh, every triangle's winding
+  matches its inward normals (so it renders from inside under back-face culling),
+  and radial rays from the centreline reach a wall (2976 rays on the default seed).
 
 ### 8.2 Invariants
 - Every generated level has a path from entry to boss.

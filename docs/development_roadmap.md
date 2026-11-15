@@ -214,7 +214,10 @@ available in this environment.
 - **Continuity**: each section's entry radius matches its parent's exit radius exactly;
   bends use a constant radius equal to that seam radius.
 - **Testing**: `tests/run.sh` → 917 checks (42 sections traversed, 0 radius error);
-  `tests/run_lighting.sh` → 173 checks. Both pass on generated levels.
+  `tests/run_lighting.sh` → 173 checks (interior normals and seams);
+  `tests/run_visibility.sh` → 171 checks, 2976 rays (mesh presence, triangle
+  winding vs. inward normals, and wall enclosure from the centreline).
+  All three pass on generated levels.
 
 Deliverables:
 1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
@@ -234,6 +237,8 @@ Deliverables:
 
 - Keep `tests/run.sh` green on every commit.
 - Keep `tests/run_lighting.sh` green on every commit (verifies pipe interior normals).
+- Keep `tests/run_visibility.sh` green on every commit (verifies every section renders
+  from inside and encloses its centreline).
 - Extend the harness with each new subsystem (junction traversal, spell cast, enemy spawn).
 - Preserve any discovered failure as a replayable case under `tests/cases/`.
 - Run the harness in CI once a runner is available.
