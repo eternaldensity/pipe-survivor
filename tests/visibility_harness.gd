@@ -53,6 +53,9 @@ func _run_all() -> void:
 		for sample in samples:
 			_cast_ring(space, sec, sample, vehicle)
 
+	_check_seams(net)
+	_check_open_ends(net, space, vehicle)
+
 	print("sections: %d" % net.sections.size())
 	main.queue_free()
 	await process_frame
@@ -229,3 +232,203 @@ func _cast_ring(space: PhysicsDirectSpaceState3D, sec: PipeSection, origin: Vect
 					continue
 			_fail("ray miss in %s (%s, r=%.1f) at %s dir %s" % [sec.name, sec.get_class(), radius, origin.snapped(Vector3(0.1, 0.1, 0.1)), dir.snapped(Vector3(0.01, 0.01, 0.01))])
 			return
+
+## ---------------------------------------------------------------- seams ---
+
+func _check_seams(net) -> void:
+	for s in net.sections:
+		var sec: PipeSection = s
+		if sec.attached_from == null:
+			continue
+		var parent: PipeSection = sec.attached_from
+		var idx: int = sec.attached_exit
+		if idx < 0 or idx >= parent.exits.size():
+			_fail("seam: %s has invalid exit %d on %s" % [sec.name, idx, parent.name])
+			continue
+		var exit_marker: Marker3D = parent.exits[idx]
+		var r_parent := parent.get_exit_radius(idx)
+		var r_child := sec.get_entry_radius()
+		_assert(absf(r_parent - r_child) < 0.5,
+			"seam radius: %s exit %d r=%.2f -> %s entry r=%.2f"
+			% [parent.name, idx, r_parent, sec.name, r_child])
+
+		var ps := _ring_stats(_ring_near(parent, exit_marker, r_parent))
+		var cs := _ring_stats(_ring_near(sec, sec.entry, r_child))
+		if ps.is_empty():
+			_fail("seam: no open ring at %s exit %d (marker %s)"
+				% [parent.name, idx, exit_marker.global_position.snapped(Vector3(0.1, 0.1, 0.1))])
+			continue
+		if cs.is_empty():
+			_fail("seam: no open ring at %s entry (marker %s)"
+				% [sec.name, sec.entry.global_position.snapped(Vector3(0.1, 0.1, 0.1))])
+			continue
+
+		var gap: float = (ps["center"] as Vector3).distance_to(cs["center"] as Vector3)
+		_assert(gap < 0.75,
+			"seam gap %.2f at %s exit %d -> %s (rings %s / %s)"
+			% [gap, parent.name, idx, sec.name,
+				(ps["center"] as Vector3).snapped(Vector3(0.1, 0.1, 0.1)),
+				(cs["center"] as Vector3).snapped(Vector3(0.1, 0.1, 0.1))])
+
+		var axis_dot := absf((ps["normal"] as Vector3).dot(cs["normal"] as Vector3))
+		var angle := rad_to_deg(acos(clampf(axis_dot, -1.0, 1.0)))
+		_assert(angle < 5.0,
+			"seam plane misalignment %.1f deg at %s exit %d -> %s"
+			% [angle, parent.name, idx, sec.name])
+
+		var rdiff := absf(float(ps["radius"]) - float(cs["radius"]))
+		_assert(rdiff < 0.75,
+			"seam ring radius mismatch %.2f at %s exit %d -> %s (%.2f vs %.2f)"
+			% [rdiff, parent.name, idx, sec.name, ps["radius"], cs["radius"]])
+
+## ------------------------------------------------------------ open ends ---
+
+func _check_open_ends(net, space: PhysicsDirectSpaceState3D, vehicle: Vehicle) -> void:
+	var used := {}
+	for s in net.sections:
+		if s.attached_from != null:
+			used["%d:%d" % [s.attached_from.get_instance_id(), s.attached_exit]] = true
+
+	for s in net.sections:
+		var sec: PipeSection = s
+		if sec.attached_from == null:
+			_cast_end_probe(space, sec, sec.entry, sec.get_entry_radius(), -1.0, vehicle)
+		for i in range(sec.exits.size()):
+			var key := "%d:%d" % [sec.get_instance_id(), i]
+			if used.has(key):
+				continue
+			_cast_end_probe(space, sec, sec.exits[i], sec.get_exit_radius(i), 1.0, vehicle)
+
+func _cast_end_probe(space: PhysicsDirectSpaceState3D, sec: PipeSection, marker: Marker3D,
+		radius: float, outward_sign: float, vehicle: Vehicle) -> void:
+	# Cast from just inside the mouth toward the outside. A capped end hits its
+	# cap within a couple of units; an open end lets the ray escape.
+	var axis: Vector3 = marker.global_transform.basis.z.normalized() * outward_sign
+	var from: Vector3 = marker.global_position - axis * 1.0
+	var to: Vector3 = marker.global_position + axis * 2.5
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = 1
+	query.collide_with_areas = false
+	query.exclude = [vehicle.get_rid()]
+	var hit := space.intersect_ray(query)
+	_assert(not hit.is_empty(),
+		"open end: %s at %s (r=%.1f) has no cap"
+		% [sec.name, marker.global_position.snapped(Vector3(0.1, 0.1, 0.1)), radius])
+
+## ------------------------------------------------------- mesh utilities ---
+
+## Returns the world-space boundary edges of every surface in a mesh.
+## Vertices are spatially welded because junction meshes are emitted with
+## per-triangle vertex copies.
+func _mesh_boundary_edges(mi: MeshInstance3D) -> Array:
+	var edges: Array = []
+	var xf := mi.global_transform
+	for surf in range(mi.mesh.get_surface_count()):
+		var arr := mi.mesh.surface_get_arrays(surf)
+		if arr == null:
+			continue
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var raw_idx = arr[Mesh.ARRAY_INDEX]
+		var idx: PackedInt32Array = raw_idx if raw_idx != null else PackedInt32Array()
+		if verts.is_empty():
+			continue
+		# Weld vertices by position (1/100 unit).
+		var weld := {}
+		var positions: Array[Vector3] = []
+		var remap := PackedInt32Array()
+		remap.resize(verts.size())
+		for vi in range(verts.size()):
+			var p: Vector3 = verts[vi]
+			var key := "%d:%d:%d" % [roundi(p.x * 100.0), roundi(p.y * 100.0), roundi(p.z * 100.0)]
+			if weld.has(key):
+				remap[vi] = weld[key]
+			else:
+				remap[vi] = positions.size()
+				weld[key] = positions.size()
+				positions.append(p)
+
+		var tri_count := idx.size() / 3 if idx.size() > 0 else verts.size() / 3
+		var counts := {}
+		for t in range(tri_count):
+			var i0: int
+			var i1: int
+			var i2: int
+			if idx.size() > 0:
+				i0 = remap[idx[t * 3]]
+				i1 = remap[idx[t * 3 + 1]]
+				i2 = remap[idx[t * 3 + 2]]
+			else:
+				i0 = remap[t * 3]
+				i1 = remap[t * 3 + 1]
+				i2 = remap[t * 3 + 2]
+			for pair in [[i0, i1], [i1, i2], [i2, i0]]:
+				var lo: int = mini(pair[0], pair[1])
+				var hi: int = maxi(pair[0], pair[1])
+				var ekey := "%d:%d" % [lo, hi]
+				if counts.has(ekey):
+					counts[ekey] += 1
+				else:
+					counts[ekey] = 1
+
+		for ekey in counts:
+			if counts[ekey] != 1:
+				continue
+			var parts: PackedStringArray = (ekey as String).split(":")
+			var a: Vector3 = positions[int(parts[0])]
+			var b: Vector3 = positions[int(parts[1])]
+			edges.append([xf * a, xf * b])
+	return edges
+
+## Boundary vertices that sit on the mouth ring around a marker.
+func _ring_near(sec: PipeSection, marker: Marker3D, radius: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var center := marker.global_position
+	var axis := marker.global_transform.basis.z.normalized()
+	for child in _all_children(sec):
+		if not (child is MeshInstance3D):
+			continue
+		var mi := child as MeshInstance3D
+		if mi.mesh == null or mi.mesh.get_surface_count() == 0:
+			continue
+		for e in _mesh_boundary_edges(mi):
+			for p in e:
+				var rel: Vector3 = p - center
+				var along := rel.dot(axis)
+				var radial := (rel - axis * along).length()
+				if absf(along) < 2.5 and radial > radius * 0.35 and radial < radius * 1.65:
+					out.append(p)
+	return out
+
+## Fit a plane/circle to a ring of points.
+func _ring_stats(pts: PackedVector3Array) -> Dictionary:
+	if pts.size() < 6:
+		return {}
+	var c := Vector3.ZERO
+	for p in pts:
+		c += p
+	c /= float(pts.size())
+
+	var farthest := Vector3.ZERO
+	var best := -1.0
+	for p in pts:
+		var d := p.distance_squared_to(c)
+		if d > best:
+			best = d
+			farthest = p - c
+	var second := Vector3.ZERO
+	var best_cross := 0.0
+	for p in pts:
+		var v := p - c
+		var cr := farthest.cross(v).length()
+		if cr > best_cross:
+			best_cross = cr
+			second = v
+	var n := farthest.cross(second)
+	if n.length_squared() < 1e-8:
+		return {}
+	n = n.normalized()
+
+	var rsum := 0.0
+	for p in pts:
+		rsum += p.distance_to(c)
+	return {"center": c, "normal": n, "radius": rsum / float(pts.size())}
