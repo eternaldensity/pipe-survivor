@@ -198,8 +198,9 @@ Deliverables:
 
 **Status:** First pass implemented. Main menu, pause menu (Esc), game-over/victory overlay
 with restart (R), and an audio manager (with generated tones) are in place. The main scene
-is now the main menu, transitioning to the game on "Start Game". In-memory mesh caching
-is implemented. Export templates are not available in this environment.
+is now the main menu, transitioning to the game on "Start Game". In-memory and disk mesh
+caching is implemented. Procedural level generation replaces hand-authored levels. Export
+templates are not available in this environment.
 
 Deliverables:
 1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
