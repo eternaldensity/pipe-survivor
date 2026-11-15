@@ -103,9 +103,7 @@ func _update_markers() -> void:
 
 func _build_curves() -> void:
 	_curves.clear()
-	var has_branch := left_branch or right_branch
-	var start_z: float = decision_offset if has_trunk else 0.0
-	var start := Vector3(0.0, 0.0, start_z)
+	var decision := Vector3(0.0, 0.0, decision_offset if has_trunk else 0.0)
 
 	# Trunk curve.
 	if has_trunk:
@@ -114,25 +112,33 @@ func _build_curves() -> void:
 		trunk.add_point(Vector3(0.0, 0.0, trunk_length), Vector3(0.0, 0.0, -trunk_length * 0.4), Vector3.ZERO)
 		_curves.append(trunk)
 
-	# Branch curves. Start inside the trunk (decision_offset - half radius) so
-	# the union carves a clean hole; leave at the branch angle immediately.
+	# Branch curves run along the same axis as the CSG tube, from inside the
+	# trunk to the exit marker, so the mesh, the curve and the marker agree.
 	var ang := deg_to_rad(branch_angle)
-	var decision := Vector3(0.0, 0.0, decision_offset)
 	var dirs := [Vector3(-sin(ang), 0.0, cos(ang)), Vector3(sin(ang), 0.0, cos(ang))]
-	var blend_start_z: float = maxf(0.0, decision_offset - blend_length) if has_trunk else 0.0
-	var branch_origin: Vector3 = Vector3(0.0, 0.0, blend_start_z) if has_trunk else Vector3.ZERO
-	if left_branch:
-		var end: Vector3 = decision + dirs[0] * branch_length
+	var extra := _branch_extra()
+	for i in range(2):
+		if (i == 0 and not left_branch) or (i == 1 and not right_branch):
+			continue
+		var d: Vector3 = dirs[i]
+		var end: Vector3 = decision + d * branch_length
+		var start: Vector3 = end - d * (branch_length + extra)
 		var c := Curve3D.new()
-		c.add_point(branch_origin, Vector3.ZERO, dirs[0] * (branch_length * 0.4))
-		c.add_point(end, -dirs[0] * (branch_length * 0.4), Vector3.ZERO)
+		var l := start.distance_to(end)
+		c.add_point(start, Vector3.ZERO, d * (l * 0.4))
+		c.add_point(end, -d * (l * 0.4), Vector3.ZERO)
 		_curves.append(c)
-	if right_branch:
-		var end: Vector3 = decision + dirs[1] * branch_length
-		var c := Curve3D.new()
-		c.add_point(branch_origin, Vector3.ZERO, dirs[1] * (branch_length * 0.4))
-		c.add_point(end, -dirs[1] * (branch_length * 0.4), Vector3.ZERO)
-		_curves.append(c)
+
+## How far a branch tube extends back into the trunk before its exit. The
+## cylinder/curve must stay inside the trunk volume so the union carves a clean
+## opening instead of poking out through the entry or the side wall.
+func _branch_extra() -> float:
+	if not has_trunk:
+		return 0.0
+	var ang := deg_to_rad(branch_angle)
+	var max_side := tube_radius * 0.8 / maxf(sin(ang), 0.02)
+	var max_z := decision_offset * 0.95 / maxf(cos(ang), 0.02)
+	return maxf(0.5, minf(blend_length + tube_radius, minf(max_side, max_z)))
 
 func _nearest_curve_point(local_pos: Vector3) -> Dictionary:
 	var best_dist := INF
@@ -225,7 +231,7 @@ func _opening_planes() -> Array:
 func _cache_key() -> String:
 	# Bump the version when the mesh-building code changes so stale disk
 	# caches are not reused.
-	return "v5|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+	return "v6|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
 		tube_radius, trunk_length, branch_angle, branch_length,
 		decision_offset, blend_length, has_trunk, left_branch, right_branch]
 
@@ -283,19 +289,20 @@ func _build_meshes() -> void:
 		trunk.position = Vector3(0.0, 0.0, trunk_length * 0.5)
 		combiner.add_child(trunk)
 
-	var decision := Vector3(0.0, 0.0, decision_offset)
-	var blend_start_z: float = maxf(0.0, decision_offset - blend_length) if has_trunk else 0.0
-	var start := Vector3(0.0, 0.0, blend_start_z)
+	var decision := Vector3(0.0, 0.0, decision_offset if has_trunk else 0.0)
+	var extra := _branch_extra()
 	for i in range(2):
 		if (i == 0 and not left_branch) or (i == 1 and not right_branch):
 			continue
 		var d: Vector3 = dirs[i]
-		var origin: Vector3 = start
 		var end: Vector3 = decision + d * branch_length
-		var length: float = (end - origin).length()
+		# Align the cylinder axis exactly with the exit marker direction and
+		# put its far cap centre exactly on the marker, so the child section's
+		# entry ring lands on the junction mouth without a gap or tilt.
+		var height: float = branch_length + extra
 		var b := CSGCylinder3D.new()
 		b.radius = tube_radius
-		b.height = length
+		b.height = height
 		b.sides = PipeSection.RING_SEGMENTS
 		var y := d
 		var x := Vector3.UP.cross(y)
@@ -304,7 +311,7 @@ func _build_meshes() -> void:
 		x = x.normalized()
 		var z := x.cross(y).normalized()
 		b.basis = Basis(x, y, z)
-		b.position = (origin + end) * 0.5
+		b.position = end - d * (height * 0.5)
 		combiner.add_child(b)
 
 	add_child(combiner)
