@@ -234,7 +234,7 @@ func _build_meshes() -> void:
 			mesh_instance.mesh = null
 		return
 
-	# Check cache.
+	# Check in-memory cache.
 	var key := _cache_key()
 	if _mesh_cache.has(key):
 		if mesh_instance:
@@ -242,6 +242,18 @@ func _build_meshes() -> void:
 			mesh_instance.position = Vector3.ZERO
 			mesh_instance.basis = Basis.IDENTITY
 		return
+
+	# Check disk cache.
+	var disk_cache_path := "user://junction_mesh_%s.res" % key.md5_text()
+	if ResourceLoader.exists(disk_cache_path):
+		var cached := ResourceLoader.load(disk_cache_path) as ArrayMesh
+		if cached:
+			_mesh_cache[key] = cached
+			if mesh_instance:
+				mesh_instance.mesh = cached
+				mesh_instance.position = Vector3.ZERO
+				mesh_instance.basis = Basis.IDENTITY
+			return
 
 	# Build one CSG cylinder per enabled path.
 	var combiner := CSGCombiner3D.new()
@@ -302,6 +314,9 @@ func _build_meshes() -> void:
 		return
 	var stripped := _strip_caps_and_color(union)
 	_mesh_cache[key] = stripped
+	# Save to disk cache for future sessions.
+	var disk_save_path := "user://junction_mesh_%s.res" % key.md5_text()
+	ResourceSaver.save(stripped, disk_save_path)
 	if mesh_instance:
 		mesh_instance.mesh = stripped
 		mesh_instance.position = Vector3.ZERO
