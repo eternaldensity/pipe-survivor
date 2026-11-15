@@ -7,7 +7,7 @@ var current_section : PipeSection = null
 
 func add_section(packed: PackedScene, props: Dictionary = {}, from_section: PipeSection = null, from_exit: int = 0) -> PipeSection:
 	var section := packed.instantiate() as PipeSection
-	
+
 	# Apply overrides before _ready runs positioning
 	for key in props:
 		section.set(key, props[key])
@@ -33,18 +33,18 @@ func add_section(packed: PackedScene, props: Dictionary = {}, from_section: Pipe
 func get_section_at(world_pos: Vector3) -> PipeSection:
 	if sections.is_empty():
 		return null
+	# Hand off out of a junction when the vehicle is near one of its exit
+	# markers AND the downstream section actually contains the point.
+	if current_section != null and current_section is JunctionPipeSection:
+		var j := current_section as JunctionPipeSection
+		for s in sections:
+			if s == current_section or s.attached_from != j:
+				continue
+			if s.entry.global_position.distance_to(world_pos) < 15.0 and s.contains_point(world_pos):
+				current_section = s
+				return s
 	# Stick with current section until we're clearly outside it
 	if current_section != null and current_section.contains_point(world_pos):
-		# Hand off out of a junction when the vehicle is right at one of its
-		# exit markers, so it doesn't stick to the junction past the exit.
-		if current_section is JunctionPipeSection:
-			var j := current_section as JunctionPipeSection
-			for s in sections:
-				if s == current_section or s.attached_from != j:
-					continue
-				if s.entry.global_position.distance_to(world_pos) < 12.0:
-					current_section = s
-					return s
 		return current_section
 	# Then look for a new one
 	for s in sections:
