@@ -162,6 +162,14 @@ func _update_attractor() -> void:
 	if preview:
 		preview.attractor = attractor
 		preview.update_preview()
+	# Show shape features.
+	var features := attractor.compute_shape_features()
+	info.text = "%s\nFamily: %s\nLobes: %d  Sym: %.2f  Aspect: %.2f" % [
+		selected_preset.name if selected_preset else "Custom",
+		selected_preset.attractor_family if selected_preset else "Lorenz",
+		features["lobe_count"],
+		features["symmetry_x"],
+		features["aspect_ratio"]]
 
 func _sync_to_vehicle() -> void:
 	if vehicle:

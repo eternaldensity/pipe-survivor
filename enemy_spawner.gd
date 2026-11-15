@@ -72,11 +72,6 @@ func _spawn_tank() -> void:
 	enemy.enemy_type = EnemyVehicle.EnemyType.TANK
 	enemy.network = network
 	enemy.target = target
-	# Tanks are weak to elongated (high aspect ratio) sigils.
-	enemy.weakness_family = "Lorenz"
-	enemy.weakness_multiplier = 2.5
-	enemy.weakness_feature = "elongated"
-	enemy.weakness_feature_threshold = 1.2
 	var parent := get_parent()
 	if parent:
 		parent.add_child(enemy)
@@ -95,12 +90,6 @@ func _spawn_chaser() -> void:
 	enemy.enemy_type = EnemyVehicle.EnemyType.CHASER
 	enemy.network = network
 	enemy.target = target
-	# Chasers are weak to volatile (high-rho) sigils with high lobe count.
-	enemy.weakness_family = "Lorenz"
-	enemy.weakness_multiplier = 1.5
-	enemy.weakness_rho_above = 30.0  # weak when spell rho > 30
-	enemy.weakness_feature = "high_lobe"
-	enemy.weakness_feature_threshold = 3.0
 	var parent := get_parent()
 	if parent:
 		parent.add_child(enemy)
@@ -131,13 +120,6 @@ func _spawn_ambushes_at_junction(j: JunctionPipeSection) -> void:
 			enemy.enemy_type = EnemyVehicle.EnemyType.AMBUSHER
 			enemy.network = network
 			enemy.target = target
-			# Ambushers are resistant but weak to stable (low-rho) sigils.
-			enemy.weakness_family = "Lorenz"
-			enemy.weakness_multiplier = 2.0
-			enemy.resistance = 0.5
-			enemy.weakness_rho_below = 20.0  # weak when spell rho < 20 (stable sigils)
-			enemy.weakness_feature = "high_symmetry"
-			enemy.weakness_feature_threshold = 0.7
 			var parent := get_parent()
 			if parent:
 				parent.add_child(enemy)

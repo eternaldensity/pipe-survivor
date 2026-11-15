@@ -37,12 +37,45 @@ func _ready() -> void:
 		EnemyType.CHASER:
 			speed = 15.0
 			health = 2.0
+			weakness_family = "Lorenz"
+			weakness_multiplier = 1.5
+			weakness_rho_above = 30.0
+			weakness_feature = "high_lobe"
+			weakness_feature_threshold = 3.0
 		EnemyType.AMBUSHER:
 			speed = 8.0
 			health = 4.0
+			weakness_family = "Lorenz"
+			weakness_multiplier = 2.0
+			resistance = 0.5
+			weakness_rho_below = 20.0
+			weakness_feature = "high_symmetry"
+			weakness_feature_threshold = 0.7
 		EnemyType.TANK:
 			speed = 5.0
 			health = 8.0
+			weakness_family = "Lorenz"
+			weakness_multiplier = 2.5
+			weakness_feature = "elongated"
+			weakness_feature_threshold = 1.2
+
+	# Weakness indicator label.
+	var label := Label3D.new()
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.font_size = 24
+	label.position = Vector3(0.0, 1.5, 0.0)
+	label.modulate = Color(1.0, 0.8, 0.2)
+	var wtext := "Weak: "
+	if weakness_feature != "":
+		wtext += weakness_feature
+	elif weakness_rho_above >= 0:
+		wtext += "high rho"
+	elif weakness_rho_below >= 0:
+		wtext += "low rho"
+	else:
+		wtext = "No weakness"
+	label.text = wtext
+	add_child(label)
 
 func _physics_process(delta: float) -> void:
 	if network == null or target == null:
