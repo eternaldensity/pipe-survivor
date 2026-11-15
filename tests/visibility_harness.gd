@@ -128,11 +128,15 @@ func _check_mesh_winding(sec: PipeSection) -> void:
 					continue
 				vn = vn.normalized()
 				checked += 1
-				if face_n.dot(vn) <= 0.0:
+				# Godot front faces are clockwise: the cross product points to
+				# the back side. Interior visibility needs it to point away from
+				# the inward normals (dot < 0); dot >= 0 means the interior is
+				# the back face and gets culled.
+				if face_n.dot(vn) >= 0.0:
 					bad += 1
 					mesh_desc = "%s/surf%d" % [mi.name, surf]
 	_assert(checked > 0, "no mesh triangles sampled: %s" % sec.name)
-	_assert(bad == 0, "%s: %d/%d triangles wound opposite their normals (invisible from inside) [mesh=%s]"
+	_assert(bad == 0, "%s: %d/%d triangles render their back side to the inside (invisible) [mesh=%s]"
 		% [sec.name, bad, checked, mesh_desc])
 
 func _all_children(node: Node) -> Array[Node]:

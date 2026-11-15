@@ -225,7 +225,7 @@ func _opening_planes() -> Array:
 func _cache_key() -> String:
 	# Bump the version when the mesh-building code changes so stale disk
 	# caches are not reused.
-	return "v4|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+	return "v5|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
 		tube_radius, trunk_length, branch_angle, branch_length,
 		decision_offset, blend_length, has_trunk, left_branch, right_branch]
 
@@ -441,16 +441,16 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 					best_c = i
 					best_cp = cp
 
-			# Orient every triangle so its geometric normal points toward the
-			# tube axis (the visible side from inside). CSG output is mostly
-			# outward-wound with outward normals, but some seam triangles come
-			# out inverted relative to their normals, which back-face culls
-			# holes into the wall when viewed from inside.
+			# Godot uses clockwise winding for front faces, i.e. the geometric
+			# normal points to the back side. The visible front must therefore
+			# face the interior: orient each triangle so its cross product
+			# points *away* from the tube axis. CSG output is mostly correct
+			# for the outside, so seam triangles need flipping here.
 			var inward := -face_n
 			var radial := centroid - best_cp
 			if radial.length_squared() > 1e-8:
 				inward = -radial.normalized()
-			var flip_winding := face_n.dot(inward) < 0.0
+			var flip_winding := face_n.dot(inward) > 0.0
 			var order := [i0, i2, i1] if flip_winding else [i0, i1, i2]
 			for k in order:
 				out_idx.append(out_verts.size())
@@ -467,8 +467,8 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 
 	# Final consistency pass: CSG seam triangles can end up with a winding that
 	# disagrees with their emitted (inward) normals, which makes them vanish
-	# from inside under CULL_BACK. Flip any such triangle so the front face is
-	# always the side the normals point to.
+	# from inside under back-face culling. Flip any such triangle so its front
+	# face (the side opposite the geometric normal) faces the interior.
 	for t in range(out_idx.size() / 3):
 		var a := out_idx[t * 3]
 		var b := out_idx[t * 3 + 1]
@@ -477,7 +477,7 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 		if fn.length_squared() < 1e-12:
 			continue
 		var an := out_norms[a] + out_norms[b] + out_norms[c]
-		if an.length_squared() < 1e-12 or fn.dot(an) < 0.0:
+		if an.length_squared() < 1e-12 or fn.dot(an) > 0.0:
 			out_idx[t * 3 + 1] = c
 			out_idx[t * 3 + 2] = b
 	var arrays := []

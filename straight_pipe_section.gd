@@ -70,9 +70,9 @@ func _build_mesh() -> ArrayMesh:
 		var b := ring_n + j
 		var c := ring_n + j2
 		var d := j2
-		# Winding chosen so the inside surface is the front face in the
-		# +Z flow direction: geometric normals point toward the axis.
-		indices.append_array([a, b, c, a, c, d])
+		# Godot uses clockwise winding for front faces, so the cross product
+		# points to the back side. This order makes the inside the front face.
+		indices.append_array([a, c, b, a, d, c])
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)

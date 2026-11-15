@@ -112,9 +112,10 @@ func _build_mesh() -> void:
 			var c := (i + 1) * (ring_steps + 1) + j + 1
 			var d := i       * (ring_steps + 1) + j + 1
 			
-			# Winding chosen so the inside surface is the front face in the
-			# +Z flow direction: geometric normals point toward the axis.
-			indices.append_array([a, b, c, a, c, d])
+			# Godot uses clockwise winding for front faces (the cross product
+			# points to the back side), so this order puts the inside surface
+			# on the front and keeps it visible with CULL_BACK.
+			indices.append_array([a, c, b, a, d, c])
 	
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
