@@ -68,10 +68,12 @@ func _spawn_chaser() -> void:
 	enemy.enemy_type = EnemyVehicle.EnemyType.CHASER
 	enemy.network = network
 	enemy.target = target
-	# Chasers are weak to high-rho (volatile) sigils.
+	# Chasers are weak to volatile (high-rho) sigils with high lobe count.
 	enemy.weakness_family = "Lorenz"
 	enemy.weakness_multiplier = 1.5
 	enemy.weakness_rho_above = 30.0  # weak when spell rho > 30
+	enemy.weakness_feature = "high_lobe"
+	enemy.weakness_feature_threshold = 3.0
 	var parent := get_parent()
 	if parent:
 		parent.add_child(enemy)
@@ -107,6 +109,8 @@ func _spawn_ambushes_at_junction(j: JunctionPipeSection) -> void:
 			enemy.weakness_multiplier = 2.0
 			enemy.resistance = 0.5
 			enemy.weakness_rho_below = 20.0  # weak when spell rho < 20 (stable sigils)
+			enemy.weakness_feature = "high_symmetry"
+			enemy.weakness_feature_threshold = 0.7
 			var parent := get_parent()
 			if parent:
 				parent.add_child(enemy)

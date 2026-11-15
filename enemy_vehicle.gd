@@ -28,6 +28,9 @@ var _activation_distance: float = 40.0
 # Shape-based weakness: enemy is weak to spells whose rho is above/below threshold.
 @export var weakness_rho_above: float = -1.0  # if >= 0, weak when spell rho > this value
 @export var weakness_rho_below: float = -1.0  # if >= 0, weak when spell rho < this value
+# Geometric feature weakness (Phase 5 refinement).
+@export var weakness_feature: String = ""  # "high_lobe", "high_symmetry", "elongated", ""
+@export var weakness_feature_threshold: float = 0.5
 
 func _ready() -> void:
 	match enemy_type:
@@ -110,7 +113,7 @@ func _flatten(delta: float, up: Vector3) -> void:
 	var target := Basis.looking_at(fwd, up)
 	global_transform.basis = global_transform.basis.slerp(target, delta * 14.0)
 
-func take_damage(amount: float, spell_family: String = "", spell_rho: float = 0.0) -> void:
+func take_damage(amount: float, spell_family: String = "", spell_rho: float = 0.0, shape_features: Dictionary = {}) -> void:
 	var dmg := amount * resistance
 	var weak := false
 	if weakness_family != "" and spell_family == weakness_family:
@@ -119,6 +122,20 @@ func take_damage(amount: float, spell_family: String = "", spell_rho: float = 0.
 		weak = true
 	if weakness_rho_below >= 0.0 and spell_rho < weakness_rho_below:
 		weak = true
+	# Geometric feature weakness.
+	if weakness_feature != "" and shape_features.size() > 0:
+		match weakness_feature:
+			"high_lobe":
+				if shape_features.get("lobe_count", 0) >= weakness_feature_threshold:
+					weak = true
+			"high_symmetry":
+				var sym: float = shape_features.get("symmetry_x", 0.0)
+				if sym > weakness_feature_threshold:
+					weak = true
+			"elongated":
+				var ar: float = shape_features.get("aspect_ratio", 1.0)
+				if ar > weakness_feature_threshold:
+					weak = true
 	if weak:
 		dmg *= weakness_multiplier
 	health -= dmg

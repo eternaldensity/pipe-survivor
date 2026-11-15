@@ -84,12 +84,18 @@ func _process(_delta: float) -> void:
 	# Win/lose status.
 	if game_manager:
 		if game_manager.victory and not status_label.visible:
-			status_label.text = "VICTORY"
+			status_label.text = "VICTORY\nPress R to restart"
 			status_label.modulate = Color(0.3, 1.0, 0.4)
 			status_label.visible = true
 			status_label.position = (get_viewport().get_visible_rect().size - status_label.size) * 0.5
 		elif game_manager.game_over and not status_label.visible:
-			status_label.text = "GAME OVER"
+			status_label.text = "GAME OVER\nPress R to restart"
 			status_label.modulate = Color(1.0, 0.3, 0.3)
 			status_label.visible = true
 			status_label.position = (get_viewport().get_visible_rect().size - status_label.size) * 0.5
+
+	# Restart on R.
+	if status_label.visible and Input.is_action_just_pressed("ui_text_completion_accept"):
+		pass
+	if status_label.visible and Input.is_key_pressed(KEY_R):
+		get_tree().reload_current_scene()
