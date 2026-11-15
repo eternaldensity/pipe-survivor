@@ -77,8 +77,8 @@ func _ready() -> void:
 
 	# Phase 5: Enemy spawner.
 	var spawner = EnemySpawner.new()
-	spawner.chaser_scene = load("res://EnemyVehicle.tscn")
-	spawner.ambusher_scene = load("res://EnemyVehicle.tscn")
+	spawner.chaser_scene = load("res://ChaserEnemy.tscn")
+	spawner.ambusher_scene = load("res://AmbusherEnemy.tscn")
 	spawner.network = network
 	spawner.target = $Vehicle
 	spawner.spawn_interval = 4.0

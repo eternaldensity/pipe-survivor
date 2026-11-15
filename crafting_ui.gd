@@ -15,6 +15,7 @@ var selected_preset: PresetSigil = null
 var attractor: Attractor = Attractor.new()
 var preview: AttractorPreview = null
 var preview_viewport: SubViewport = null
+var preview_camera: Camera3D = null
 
 # Parameter sliders.
 var slider_sigma: HSlider = null
@@ -83,26 +84,33 @@ func _build_param_sliders() -> void:
 	slider_beta.value_changed.connect(_on_beta_changed)
 	param_box.add_child(slider_beta)
 
+	# Cast button.
+	var cast_btn := Button.new()
+	cast_btn.text = "Cast Spell"
+	cast_btn.pressed.connect(_on_cast_pressed)
+	param_box.add_child(cast_btn)
+
 func _build_preview() -> void:
-	# Create a SubViewport for 3D preview rendering.
-	if preview_container:
-		preview_viewport = SubViewport.new()
-		preview_viewport.size = Vector2i(200, 200)
-		preview_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		preview_container.add_child(preview_viewport)
+	if preview_container == null:
+		return
+	preview_viewport = SubViewport.new()
+	preview_viewport.size = Vector2i(128, 128)
+	preview_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	preview_container.add_child(preview_viewport)
 
-		# Camera for the preview.
-		var cam := Camera3D.new()
-		cam.position = Vector3(0, 0, 5)
-		cam.look_at(Vector3.ZERO)
-		preview_viewport.add_child(cam)
+	# Camera looking at origin.
+	preview_camera = Camera3D.new()
+	preview_camera.position = Vector3(0, 0, 4)
+	preview_camera.look_at(Vector3.ZERO)
+	preview_viewport.add_child(preview_camera)
 
-		# Attractor preview mesh.
-		preview = AttractorPreview.new()
-		preview_viewport.add_child(preview)
-		preview.position = Vector3.ZERO
-		preview.scale = Vector3(0.5, 0.5, 0.5)
-		preview.visible = true
+	# Attractor preview mesh.
+	preview = AttractorPreview.new()
+	preview.position = Vector3.ZERO
+	preview.scale = Vector3(0.3, 0.3, 0.3)
+	preview_viewport.add_child(preview)
+	preview.visible = true
+	preview.update_preview()
 
 func _on_preset_selected(p: PresetSigil) -> void:
 	selected_preset = p
@@ -138,6 +146,17 @@ func _on_beta_changed(val: float) -> void:
 	label_beta.text = "Beta: %.2f" % val
 	_update_attractor()
 	_sync_to_vehicle()
+
+func _on_cast_pressed() -> void:
+	if vehicle:
+		vehicle.spell_sigma = attractor.sigma
+		vehicle.spell_rho = attractor.rho
+		vehicle.spell_beta = attractor.beta
+		# Trigger cast.
+		vehicle._spell_cooldown = 0.0
+		Input.action_press("ui_accept")
+		await get_tree().process_frame
+		Input.action_release("ui_accept")
 
 func _update_attractor() -> void:
 	if preview:
