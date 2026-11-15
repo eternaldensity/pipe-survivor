@@ -71,6 +71,7 @@ func _spawn_chaser() -> void:
 	# Chasers are weak to high-rho (volatile) sigils.
 	enemy.weakness_family = "Lorenz"
 	enemy.weakness_multiplier = 1.5
+	enemy.weakness_rho_above = 30.0  # weak when spell rho > 30
 	var parent := get_parent()
 	if parent:
 		parent.add_child(enemy)
@@ -105,6 +106,7 @@ func _spawn_ambushes_at_junction(j: JunctionPipeSection) -> void:
 			enemy.weakness_family = "Lorenz"
 			enemy.weakness_multiplier = 2.0
 			enemy.resistance = 0.5
+			enemy.weakness_rho_below = 20.0  # weak when spell rho < 20 (stable sigils)
 			var parent := get_parent()
 			if parent:
 				parent.add_child(enemy)

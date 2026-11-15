@@ -38,3 +38,8 @@ layout_mode = 2
 [node name="PreviewContainer" type="SubViewportContainer" parent="PanelContainer/VBoxContainer"]
 layout_mode = 2
 custom_minimum_size = Vector2(200, 200)
+stretch = true
+
+[node name="PreviewContainer" type="SubViewportContainer" parent="PanelContainer/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 200)

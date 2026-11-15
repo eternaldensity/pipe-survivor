@@ -6,6 +6,7 @@ extends Area3D
 @export var strength: float = 0.5
 @export var zone_radius: float = 15.0
 @export var attractor_family: String = "Lorenz"
+@export var spell_rho: float = 28.0
 
 var attractor: Attractor = Attractor.new()
 var zone_centre: Vector3 = Vector3.ZERO
@@ -55,7 +56,7 @@ func _physics_process(delta: float) -> void:
 			var derivative := attractor.derivative(offset)
 			body.velocity += derivative * strength * delta
 			if body.has_method("take_damage"):
-				body.take_damage(strength * delta * 2.0, attractor_family)
+				body.take_damage(strength * delta * 2.0, attractor_family, spell_rho)
 		elif body is CharacterBody3D:
 			var offset := body.global_position - zone_centre
 			var derivative := attractor.derivative(offset)

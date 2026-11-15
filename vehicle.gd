@@ -144,6 +144,7 @@ func _physics_process(delta: float) -> void:
 		# Set attractor family from selected preset.
 		if selected_preset_index >= 0 and selected_preset_index < _presets.size():
 			zone.attractor_family = _presets[selected_preset_index].attractor_family
+		zone.spell_rho = spell_rho
 		var fwd := -global_transform.basis.z
 		fwd = fwd - fwd.dot(outward) * outward
 		if fwd.length_squared() > 1e-4:

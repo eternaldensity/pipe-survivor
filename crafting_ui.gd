@@ -7,12 +7,14 @@ extends CanvasLayer
 @onready var info: Label = $PanelContainer/VBoxContainer/Info
 @onready var preset_list: VBoxContainer = $PanelContainer/VBoxContainer/PresetList
 @onready var param_box: VBoxContainer = $PanelContainer/VBoxContainer/ParamBox
+@onready var preview_container: SubViewportContainer = $PanelContainer/VBoxContainer/PreviewContainer
 
 var vehicle: Vehicle = null
 var presets: Array[PresetSigil] = []
 var selected_preset: PresetSigil = null
 var attractor: Attractor = Attractor.new()
 var preview: AttractorPreview = null
+var preview_viewport: SubViewport = null
 
 # Parameter sliders.
 var slider_sigma: HSlider = null
@@ -82,13 +84,25 @@ func _build_param_sliders() -> void:
 	param_box.add_child(slider_beta)
 
 func _build_preview() -> void:
-	# Create an attractor preview as a child of the panel.
-	preview = AttractorPreview.new()
-	preview.visible = false
-	preview.scale = Vector3(0.5, 0.5, 0.5)
-	# Offset it to the right side of the panel.
-	preview.position = Vector3(0.0, 0.0, 0.0)
-	panel.add_child(preview)
+	# Create a SubViewport for 3D preview rendering.
+	if preview_container:
+		preview_viewport = SubViewport.new()
+		preview_viewport.size = Vector2i(200, 200)
+		preview_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		preview_container.add_child(preview_viewport)
+
+		# Camera for the preview.
+		var cam := Camera3D.new()
+		cam.position = Vector3(0, 0, 5)
+		cam.look_at(Vector3.ZERO)
+		preview_viewport.add_child(cam)
+
+		# Attractor preview mesh.
+		preview = AttractorPreview.new()
+		preview_viewport.add_child(preview)
+		preview.position = Vector3.ZERO
+		preview.scale = Vector3(0.5, 0.5, 0.5)
+		preview.visible = true
 
 func _on_preset_selected(p: PresetSigil) -> void:
 	selected_preset = p
