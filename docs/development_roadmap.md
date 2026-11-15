@@ -118,7 +118,7 @@ visible before junctions.
 
 **Goal:** One working attractor-driven mechanic.
 
-**Status:** Attractor evaluation (Lorenz, RK4) and a vector-field spell zone are implemented.
+**Status:** COMPLETE. Attractor evaluation (Lorenz, RK4) and a vector-field spell zone are implemented.
 The vehicle casts on `ui_accept` (Enter/Space) with a 2s cooldown. The zone applies the
 attractor derivative as a velocity nudge to bodies inside for 5s. Preset sigils (3 presets)
 are selectable via number keys 1/2/3 and configure the cast attractor. An `AttractorPreview`
@@ -145,7 +145,7 @@ in the crafting UI).
 
 **Goal:** Survivors-like pressure from the network topology.
 
-**Status:** Enemy archetypes (chaser, ambusher, tank) and topology-driven ambushes implemented.
+**Status:** COMPLETE. Enemy archetypes (chaser, ambusher, tank) and topology-driven ambushes implemented.
 Chasers are fast (speed 15, health 2) and weak to volatile (high-rho, high-lobe) sigils.
 Ambushers are slow (speed 8, health 4) and weak to stable (low-rho, high-symmetry) sigils.
 Tanks are slow (speed 5, health 8) and weak to elongated (high aspect ratio) sigils.
