@@ -185,17 +185,6 @@ func _physics_process(delta: float) -> void:
 	# vehicle, and from then on forward always means "where I'm pointing"
 	# Steering input ramps smoothly instead of being all-or-nothing.
 	var target_turn := Input.get_axis("ui_left", "ui_right")
-	# Auto-steer: when no player input, gently follow the tube axis so the
-	# vehicle stays on course through bends without manual steering.
-	if abs(target_turn) < 0.001:
-		var fwd := -global_transform.basis.z
-		fwd = fwd - fwd.dot(outward) * outward
-		if fwd.length_squared() > 1e-4:
-			fwd = fwd.normalized()
-			var cos_err := fwd.dot(tube_axis)
-			var sin_err := fwd.cross(tube_axis).dot(outward)
-			var angle_err := atan2(sin_err, cos_err)
-			target_turn = clampf(angle_err * 3.0, -1.0, 1.0)
 	steering_amount = move_toward(steering_amount, target_turn, steer_accel * delta)
 	if abs(steering_amount) > 0.001:
 		var steer := Basis(inward, -steering_amount * turn_speed * delta)

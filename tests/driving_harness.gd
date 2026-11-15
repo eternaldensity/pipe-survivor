@@ -33,6 +33,33 @@ func _run_all() -> void:
 	await _test_properties()
 	await _test_seams()
 
+## Test-only steering helper: steer toward the tube axis so the vehicle can
+## traverse generated levels. The game itself has no auto-steer.
+func _auto_steer(v: Vehicle) -> void:
+	var to_self: Vector3 = v.global_position - v.tube_origin
+	var radial: Vector3 = to_self - to_self.dot(v.tube_axis) * v.tube_axis
+	if radial.length_squared() < 1e-4:
+		return
+	var outward: Vector3 = radial.normalized()
+	var fwd: Vector3 = -v.global_transform.basis.z
+	fwd = fwd - fwd.dot(outward) * outward
+	if fwd.length_squared() < 1e-4:
+		return
+	fwd = fwd.normalized()
+	var cos_err: float = fwd.dot(v.tube_axis)
+	var sin_err: float = fwd.cross(v.tube_axis).dot(outward)
+	var angle_err: float = atan2(sin_err, cos_err)
+	var turn: float = clampf(angle_err * 3.0, -1.0, 1.0)
+	if turn > 0.01:
+		Input.action_press("ui_right", turn)
+		Input.action_release("ui_left")
+	elif turn < -0.01:
+		Input.action_press("ui_left", -turn)
+		Input.action_release("ui_right")
+	else:
+		Input.action_release("ui_left")
+		Input.action_release("ui_right")
+
 func _test_driving() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
@@ -49,6 +76,7 @@ func _test_driving() -> void:
 		await process_frame
 		var v = main.get_node("Vehicle")
 		var net = main.get_node("PipeNetwork")
+		_auto_steer(v)
 
 		var sec = net.get_section_at(v.global_position)
 		if sec == null:
@@ -84,6 +112,8 @@ func _test_driving() -> void:
 			if is_nan(c) or is_inf(c):
 				nan_count += 1
 	Input.action_release("ui_up")
+	Input.action_release("ui_left")
+	Input.action_release("ui_right")
 	_assert(nan_count == 0, "driving: NaN/INF detected (%d)" % nan_count)
 	_assert(seen.size() >= 8, "driving: too few sections traversed (%d)" % seen.size())
 	_assert(max_radius_error < 3.0, "driving: vehicle left tube wall (max radius error %.2f)" % max_radius_error)
@@ -182,6 +212,7 @@ func _test_branch() -> void:
 	var outside_frames := 0
 	for i in range(1500):
 		await process_frame
+		_auto_steer(v)
 		var sec = net.get_section_at(v.global_position)
 		if sec == null:
 			_fail("branch: null section at frame %d" % i)
@@ -207,6 +238,8 @@ func _test_branch() -> void:
 			if is_nan(c) or is_inf(c):
 				nan_count += 1
 	Input.action_release("ui_up")
+	Input.action_release("ui_left")
+	Input.action_release("ui_right")
 	_assert(nan_count == 0, "branch: NaN/INF detected (%d)" % nan_count)
 	# Slightly looser than the straight-line tests: the curved-junction -> straight
 	# branch seam can report a transient offset for a frame during hand-off.
