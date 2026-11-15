@@ -170,13 +170,13 @@ Deliverables:
 **Goal:** A Lorenz-style boss with a live, never-exactly-repeating attack pattern.
 
 **Status:** Boss vehicle uses a Lorenz attractor to drive its movement (scaled to the
-arena). Spell zones damage both enemies and the boss. A GameManager tracks player/boss
-health and detects win/lose. Enemy contact damage is implemented. Win/lose UI and
-boss attacks are still pending.
+arena). The boss fires projectiles toward the player every 3 seconds. Spell zones damage
+both enemies and the boss. A GameManager tracks player/boss health and detects win/lose.
+Enemy contact damage is implemented. Win/lose UI display is still pending.
 
 Deliverables:
-1. **[Partial]** Boss scene with attractor-driven movement (attractor as verb, spec §3.4).
-   Movement works; attacks are still pending.
+1. **[Partial]** Boss scene with attractor-driven movement and projectile attacks.
+   Movement and attacks work; more varied attack patterns pending.
 2. **[Partial]** Boss arena: the trunk path ends in a widening section (radius 10→20).
    A dedicated chamber is still pending.
 3. **[Partial]** Win/lose flow: GameManager detects player death and boss death.
