@@ -68,8 +68,9 @@ func _test_straight_normals() -> void:
 					nan_count += 1
 			if n.length_squared() < 1e-8:
 				zero_count += 1
-			# Radial direction from centreline (local XZ plane) to vertex.
-			var radial := Vector3(v.x, 0.0, v.z)
+			# Radial direction from the centreline (cross-section is local XY;
+			# the straight pipe runs along local Z) to the vertex.
+			var radial := Vector3(v.x, v.y, 0.0)
 			if radial.length_squared() > 1e-4:
 				radial = radial.normalized()
 				var dot_r := n.dot(radial)

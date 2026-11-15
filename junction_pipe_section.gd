@@ -42,7 +42,10 @@ func _ready() -> void:
 	_update_markers()
 	_ensure_curves()
 
-	_build_meshes()
+	# _build_meshes is a coroutine when the CSG union has to be built (it
+	# awaits frames). Await it, otherwise _build_collisions sees a null mesh
+	# on the first run and silently creates no collision body.
+	await _build_meshes()
 
 	if Engine.is_editor_hint():
 		notify_property_list_changed()
@@ -220,7 +223,9 @@ func _opening_planes() -> Array:
 	return planes
 
 func _cache_key() -> String:
-	return "%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
+	# Bump the version when the mesh-building code changes so stale disk
+	# caches are not reused.
+	return "v4|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
 		tube_radius, trunk_length, branch_angle, branch_length,
 		decision_offset, blend_length, has_trunk, left_branch, right_branch]
 
@@ -426,6 +431,7 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 
 			var best_c := 0
 			var best_d := INF
+			var best_cp := centroid
 			for i in range(_curves.size()):
 				var off: float = _curves[i].get_closest_offset(centroid)
 				var cp: Vector3 = _curves[i].sample_baked(off)
@@ -433,15 +439,47 @@ func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
 				if d < best_d:
 					best_d = d
 					best_c = i
+					best_cp = cp
 
-			for k in [i0, i1, i2]:
+			# Orient every triangle so its geometric normal points toward the
+			# tube axis (the visible side from inside). CSG output is mostly
+			# outward-wound with outward normals, but some seam triangles come
+			# out inverted relative to their normals, which back-face culls
+			# holes into the wall when viewed from inside.
+			var inward := -face_n
+			var radial := centroid - best_cp
+			if radial.length_squared() > 1e-8:
+				inward = -radial.normalized()
+			var flip_winding := face_n.dot(inward) < 0.0
+			var order := [i0, i2, i1] if flip_winding else [i0, i1, i2]
+			for k in order:
 				out_idx.append(out_verts.size())
 				out_verts.append(verts[k])
 				var n: Vector3 = norms[k] if k < norms.size() else face_n
-				out_norms.append(-n)
+				var out_n := -n
+				# Keep the smooth CSG normal, but never let it point the wrong
+				# way for a triangle we just oriented.
+				if out_n.length_squared() < 1e-12 or out_n.dot(inward) < 0.2:
+					out_n = inward
+				out_norms.append(out_n.normalized())
 				out_uvs.append(uvs[k] if k < uvs.size() else Vector2.ZERO)
 				out_cols.append(colors[best_c] if best_c < colors.size() else Color.WHITE)
 
+	# Final consistency pass: CSG seam triangles can end up with a winding that
+	# disagrees with their emitted (inward) normals, which makes them vanish
+	# from inside under CULL_BACK. Flip any such triangle so the front face is
+	# always the side the normals point to.
+	for t in range(out_idx.size() / 3):
+		var a := out_idx[t * 3]
+		var b := out_idx[t * 3 + 1]
+		var c := out_idx[t * 3 + 2]
+		var fn := (out_verts[b] - out_verts[a]).cross(out_verts[c] - out_verts[a])
+		if fn.length_squared() < 1e-12:
+			continue
+		var an := out_norms[a] + out_norms[b] + out_norms[c]
+		if an.length_squared() < 1e-12 or fn.dot(an) < 0.0:
+			out_idx[t * 3 + 1] = c
+			out_idx[t * 3 + 2] = b
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = out_verts

@@ -12,48 +12,20 @@ func _ready() -> void:
 	entry.position = Vector3(0.0, 0.0, -length / 2.0)
 	exit.position  = Vector3(0.0, 0.0,  length / 2.0)
 	exits = [exit]
-	
-	var m := CylinderMesh.new()
-	m.top_radius    = exit_radius
-	m.bottom_radius = entry_radius
-	m.height        = length
-	m.radial_segments = PipeSection.RING_SEGMENTS
-	m.cap_top       = false
-	m.cap_bottom    = false
 
-	# CylinderMesh normals point outward; the vehicle views the pipe from the
-	# inside, so negate them for correct interior lighting. Using ArrayMesh
-	# avoids the SurfaceTool.generate_normals smoothing that broke an earlier
-	# attempt.
-	var arrays := m.surface_get_arrays(0)
-	var normals := arrays[Mesh.ARRAY_NORMAL] as PackedVector3Array
-	for i in range(normals.size()):
-		normals[i] = -normals[i]
-	arrays[Mesh.ARRAY_NORMAL] = normals
+	# Build the cylinder/frustum mesh explicitly. Doing this by hand (rather
+	# than using CylinderMesh) guarantees a complete surface, inward normals,
+	# and correct winding for interior rendering.
+	mesh_instance.mesh = _build_mesh()
+	mesh_instance.basis = Basis.IDENTITY
+	mesh_instance.position = Vector3.ZERO
 
-	# Flip winding order so the inside surface becomes the front face.
-	# Without this, CULL_BACK would cull the inside (back face) and show
-	# nothing, because the original CylinderMesh winding marks the outside
-	# as the front face.
-	var idx := arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
-	for i in range(0, idx.size(), 3):
-		var tmp := idx[i + 1]
-		idx[i + 1] = idx[i + 2]
-		idx[i + 2] = tmp
-	arrays[Mesh.ARRAY_INDEX] = idx
-
-	var am := ArrayMesh.new()
-	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	mesh_instance.mesh = am
-
-	# Back-face culling: only the inside (now front face) renders.
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.6462178, 0.9540631, 0.9395212, 1)
 	mat.cull_mode = BaseMaterial3D.CULL_BACK
 	mesh_instance.material_override = mat
 
 	mesh_instance.create_trimesh_collision()
-	# this auto-generates a StaticBody3D with correct collision as a child
 	await get_tree().process_frame  # let the child node appear
 	if mesh_instance.get_child_count() == 0:
 		return
@@ -63,6 +35,54 @@ func _ready() -> void:
 	var shape := body.get_child(0) as CollisionShape3D
 	if shape and shape.shape is ConcavePolygonShape3D:
 		(shape.shape as ConcavePolygonShape3D).backface_collision = true
+
+func _build_mesh() -> ArrayMesh:
+	var ring_steps := PipeSection.RING_SEGMENTS
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+
+	var z0 := -length / 2.0
+	var z1 :=  length / 2.0
+	var r0 := entry_radius
+	var r1 := exit_radius
+	var drdz := (r1 - r0) / length
+
+	# Two rings (entry and exit), each with ring_steps vertices.
+	for ring in range(2):
+		var z := z0 if ring == 0 else z1
+		var r := r0 if ring == 0 else r1
+		for j in range(ring_steps):
+			var a := TAU * float(j) / float(ring_steps)
+			var c := cos(a)
+			var s := sin(a)
+			verts.append(Vector3(r * c, r * s, z))
+			# Inward normal for a (possibly tapered) cylinder.
+			var n := Vector3(-c, -s, drdz).normalized()
+			normals.append(n)
+			uvs.append(Vector2(float(j) / float(ring_steps), float(ring)))
+
+	var ring_n := ring_steps
+	for j in range(ring_steps):
+		var j2 := (j + 1) % ring_steps
+		var a := j
+		var b := ring_n + j
+		var c := ring_n + j2
+		var d := j2
+		# Winding chosen so the inside surface is the front face in the
+		# +Z flow direction: geometric normals point toward the axis.
+		indices.append_array([a, b, c, a, c, d])
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 func get_entry_radius() -> float:
 	return entry_radius
@@ -77,13 +97,13 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var along    := to_pos.dot(fwd)
 	var along_c  : float = clampf(along, 0.0, length)
 	var t: float = along_c / length
-	
+
 	# Radius at this point along the taper
 	var r        := lerpf(entry_radius, exit_radius, t)
-	
+
 	# Nearest point on the centreline
 	var origin   : Vector3 = entry.global_position + fwd * along_c
-	
+
 	return {
 		"axis":   fwd,
 		"origin": origin,
