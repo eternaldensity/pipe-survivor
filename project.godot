@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Pipe Survivor"
-run/main_scene="uid://byekx5o2ywg87"
+run/main_scene="uid://mainmenu001"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 

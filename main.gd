@@ -95,3 +95,11 @@ func _ready() -> void:
 	# Phase 6/7: Game HUD.
 	var hud = load("res://GameHUD.tscn").instantiate()
 	add_child(hud)
+
+	# Phase 7: Audio manager.
+	var audio = AudioManager.new()
+	add_child(audio)
+
+	# Phase 7: Pause menu.
+	var pause_menu = load("res://PauseMenu.tscn").instantiate()
+	add_child(pause_menu)
