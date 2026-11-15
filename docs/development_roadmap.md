@@ -132,9 +132,10 @@ Deliverables:
 3. **[Partial]** Live preview of attractor shape: `AttractorPreview` node renders the
    Lorenz shape as a line strip above the vehicle in rest zones. Full crafting-UI
    integration pending.
-4. **[Partial]** Preset sigils ("cards") as starting spells; name → seeded sigil (spec §3.6).
-   Presets are selectable via number keys and configure the cast attractor. Full crafting
-   UI integration still pending.
+4. **[Done]** Preset sigils ("cards") as starting spells; name → seeded sigil (spec §3.6).
+   Presets are selectable via number keys and configure the cast attractor. Spell zones
+   deal damage to enemies, with bonus damage when the spell's attractor family matches
+   the enemy's weakness. Full crafting UI integration still pending.
 
 **Exit criteria:** Player can cast a vector-field zone that affects a test projectile/debris;
 shape preview renders. **Partially met** (cast works and affects vehicle velocity; preview
