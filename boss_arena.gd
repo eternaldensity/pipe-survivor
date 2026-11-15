@@ -3,9 +3,6 @@ class_name BossArena
 extends StraightPipeSection
 
 func _ready() -> void:
-	entry_radius = 35.0
-	exit_radius = 35.0
-	length = 150.0
 	super._ready()
 	if mesh_instance:
 		var mat := StandardMaterial3D.new()

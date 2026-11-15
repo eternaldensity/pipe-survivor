@@ -47,6 +47,16 @@ func _ready() -> void:
 	status_label.add_theme_font_size_override("font_size", 48)
 	add_child(status_label)
 
+	# FPS display (bottom-right, unobtrusive).
+	var fps_label := Label.new()
+	fps_label.name = "FPSLabel"
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	fps_label.position = Vector2(0, 0)
+	fps_label.size = Vector2(100, 20)
+	fps_label.add_theme_font_size_override("font_size", 14)
+	fps_label.modulate = Color(0.7, 0.7, 0.7, 0.6)
+	add_child(fps_label)
+
 func _process(_delta: float) -> void:
 	# Find player and boss if not yet found.
 	if player == null:
@@ -66,6 +76,13 @@ func _process(_delta: float) -> void:
 	if player:
 		player_health_bar.max_value = player.max_health
 		player_health_bar.value = player.health
+
+	# Update FPS display.
+	var fps_label := get_node_or_null("FPSLabel") as Label
+	if fps_label:
+		fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
+		var vp := get_viewport().get_visible_rect().size
+		fps_label.position = Vector2(vp.x - 110, vp.y - 30)
 
 	# Update boss health bar.
 	if boss and is_instance_valid(boss):
