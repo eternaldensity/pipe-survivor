@@ -1,304 +1,542 @@
-# Pipe Survivor — Level Generation System Plan
+# Pipe Survivor — Level Generation Plan v2
 
-## 1. Overview
+**Goal:** turn the current linear hand-off chain into a seeded, run-based level that
+supports *Vampire Survivors*-style pressure: the player travels a long, meandering
+route through a **topological tube network with loops and side paths**, while a spawn
+director ramps enemy **density** first and enemy **quality** later, ending in a boss.
 
-Replace the hand-authored section chain in `main.gd` with a **seeded, procedural level
-generator** that produces a connected, navigable pipe network with difficulty progression,
-junctions, rest zones, enemies, and a boss arena. The generator must be deterministic
-(given a seed), robust (no invalid geometry), and produce varied, interesting layouts.
-
-Instancing/LOD is deferred to a later epic; this plan focuses on **topology, geometry,
-and gameplay content placement**.
-
----
-
-## 2. Current State
-
-- `PipeNetwork.add_section()` already supports arbitrary attachment (`from_section`,
-  `from_exit`), so a **tree/graph** of sections is possible.
-- Sections are self-positioning via marker snapping; no manual transforms.
-- `get_section_at()` is sticky with nearest-midpoint fallback.
-- The harness validates: radius continuity, no NaN, traversal, mesh normals.
-- `main.gd` hand-assembles ~19 sections in a linear chain with one junction.
+This document supersedes the v1 plan. It keeps the working geometry pipeline
+(`SectionGraph` → `PipeNetwork.add_section` → marker snapping) and adds a macro
+topology layer, a connector section for exact loop closure, and a threat director.
 
 ---
 
-## 3. Design Goals
+## 1. Design Pillars
 
-| Goal | Rationale |
+| Pillar | Meaning |
 |---|---|
-| **Deterministic** | Same seed → same level (replay, debugging, sharing). |
-| **Navigable** | Player can always reach the boss; no soft-locks. |
-| **Varied** | Different seeds feel different (topology, radii, bends). |
-| **Progressive** | Difficulty ramps: wider→narrower, gentle→sharp bends, more enemies. |
-| **Validated** | Self-intersection, radius mismatch, and disconnected sections are rejected. |
-| **Extensible** | New section types (loops, chambers) plug in without rewriting the generator. |
-| **Fast** | Generation completes in < 1 second for a full floor. |
+| **Run-based** | 12–18 minute floor, weak start → escalating pressure → boss payoff. |
+| **Always moving** | The critical path is a clear, meandering route; stopping is dangerous. |
+| **Route choice** | Loops and side paths offer risk/reward, escape space and flanking routes. |
+| **Density → quality** | First half ramps how many enemies; second half ramps how dangerous they are. |
+| **Deterministic** | Same seed → same macro graph, geometry, and director schedule. |
+| **Debuggable** | Every generated level can be dumped as a graph/metrics summary. |
+| **Validated** | Topology, geometry, seams, caps and threat monotonicity are checked headlessly. |
 
 ---
 
-## 4. Architecture
+## 2. Gameplay Loop
 
-### 4.1 Core Components
+1. Spawn in a sealed starting pipe. The **main path** is marked by signs/lighting.
+2. Move forward; ambient enemies spawn behind and ahead. Early enemies are slow and weak.
+3. At **junctions**, choose:
+   - continue on the main path,
+   - take a **side path** ending in a reward chamber (elite + upgrade), or
+   - take a **loop** that rejoins the main path later (shortcut / flanking route).
+4. Every zone boundary has a **rest chamber**: heal, choose a spell/sigil upgrade, see a
+   short breather before the next ramp.
+5. Enemy density rises until roughly 40–50% progress, then plateaus while elites,
+   new archetypes and champion waves appear.
+6. The final node is the **boss arena**; boss stats scale with the director's threat level.
+
+Backtracking is allowed. Difficulty is driven by **furthest progress reached**, never by
+current position, so retreating to a loop cannot farm an easier state.
+
+### Progress metric
 
 ```
-LevelGenerator (Node)
-├── LevelConfig (Resource)       — seed, floor number, difficulty params, section counts
-├── SectionPool (Resource)       — weighted list of available section templates
-├── SectionGraph (class)         — nodes + edges, with metadata
-├── PlacementValidator (class)    — self-intersection, radius, connectivity checks
-├── ContentPlacer (class)        — rest zones, signs, enemies, boss, spawners
-└── NetworkBuilder (class)       — converts SectionGraph → PipeNetwork.add_section calls
+main_path_length = Σ length of macro edges on the critical route
+progress(player) = max(main_path_distance_reached) / main_path_length   // 0..1, monotonic
 ```
 
-### 4.2 Section Graph
+Loops and side paths add local distance but do **not** count toward `progress`.
 
-A level is a **directed graph** of `SectionNode` objects:
+---
+
+## 3. Topology Model
+
+### 3.1 Macro graph
+
+Generation produces a `MacroGraph`:
 
 ```
-class SectionNode:
-    id: int
-    type: SectionType (STRAIGHT, BEND, JUNCTION, REST_ZONE, BOSS_ARENA)
-    params: Dictionary (entry_radius, exit_radius, length, bend_angle, roll_angle, etc.)
-    exits: Array[int]           # indices of child SectionNodes
-    parent: int                 # index of parent (-1 for root)
-    depth: int                  # distance from entry (for difficulty scaling)
-    position: Vector3           # world position (computed by builder)
-    transform: Transform3D      # world transform (computed by builder)
-    metadata: Dictionary        # e.g. "has_rest_zone", "enemy_count"
+MacroNode
+  id
+  kind: ENTRY | CHAMBER | JUNCTION | REST | REWARD | BOSS
+  position_hint: Vector3           # 2.5D placement, refined by the builder
+  ports: Array[Port]               # each port becomes a section exit marker
+  zone: int                        # 1..5, drives radius/enemies
+  main_index: int                  # order along the critical path (-1 for side nodes)
+  metadata: Dictionary
+
+MacroEdge
+  id
+  from_node, from_port
+  to_node, to_port
+  kind: MAIN | LOOP | SIDE
+  length_hint
+  radius
+  realization: CHAIN | CONNECTOR   # CHAIN = straights/bends, CONNECTOR = spline tube
+  sections: Array[SectionNode]     # filled by subdivision
 ```
 
-The graph is built first, then embedded in 3D via `NetworkBuilder`.
+The macro graph is the authority for topology; the section graph is an implementation
+detail used by the existing builder.
 
-### 4.3 Section Types & Templates
+### 3.2 Main meandering path
 
-| Type | Params | Notes |
+The critical route is a single sequence `M0 … Mn`:
+
+- Start with a forward-biased heading.
+- At each anchor, choose a turn from `{-45°, 0°, +45°}` (occasionally 90° near zone
+  boundaries), biased toward the global forward axis but away from already occupied space.
+- Anchor spacing 60–150 units, with ±15° roll variation for 3D interest.
+- A coarse spatial hash rejects anchors whose clearance to existing main-path segments is
+  below `2 * radius + margin`.
+- The route must keep a minimum global forward progress; if it turns back too far, the
+  anchor is discarded and re-rolled.
+
+The result is a serpentine, readable main path rather than a random walk. It may curve in
+3D, but should not fold onto itself.
+
+### 3.3 Loops
+
+A loop is a `LOOP` macro edge joining two ports on the main path:
+
+- Candidate pair `(Mi, Mj)` with `j >= i + 2` (skip at least one anchor).
+- Prefer pairs 3–8 sections apart; this creates kiting space without skipping the whole floor.
+- Each anchor offers at most one loop port; junction sections have a spare branch port.
+- Loop count target: **2–4** for a 12–18 minute run (`cyclomatic number C = E − V + 1`).
+- Loop radius = radius of the lower-zone anchor (seam continuity).
+- Loop edges are realized as `CONNECTOR` sections, so both ends land exactly on the
+  junction branch markers even when the main path curved between them.
+
+Gameplay roles of loops:
+
+- **Shortcut**: skips a stretch of main path, but the loop itself contains an elite pack.
+- **Flank**: parallel route that lets the player escape a bad spawn; ambient spawns can
+  appear on either side, so it never becomes a permanent safe lane.
+- **Arena**: wide loop creates a natural kite ring around a junction.
+
+### 3.4 Side paths
+
+A side path is a `SIDE` macro edge (or short chain) from a junction branch to a
+`REWARD` chamber:
+
+- 3–6 side paths per floor, each 2–5 sections long.
+- Ends in a reward chamber: spell/sigil choice, healing shrine, or elite treasure.
+- Always sealed with an `EndCap` (no void), and always gives a reward so it is not a trap.
+- A side path may optionally rejoin the main path; if it does, it is promoted to a `LOOP`.
+
+### 3.5 Degree and port constraints
+
+| Node kind | Ports | Notes |
 |---|---|---|
-| `STRAIGHT` | entry_radius, exit_radius, length | Doubles as size adaptor. |
-| `BEND` | tube_radius, length (arc), bend_angle, roll_angle | roll_angle enables 3D bends. |
-| `JUNCTION` | tube_radius, trunk_length, branch_angle, branch_length, has_trunk, left/right | Y-split, exit-branch, trident. |
-| `REST_ZONE` | radius, length | Wide chamber; replaces a straight section. |
-| `BOSS_ARENA` | radius, length | Widest section; terminal node. |
+| `ENTRY` | 1 | Initial main edge only; start cap behind the player. |
+| `CHAMBER` | 2 | Pass-through section, may host a set-piece. |
+| `JUNCTION` | 2–4 | Main in, main out, plus loop/side ports; maps to `JunctionPipeSection`. |
+| `REST` | 2 | Wide chamber with a safe pocket, no ambient spawns inside. |
+| `REWARD` | 1 | Terminal side chamber, capped; contains the reward. |
+| `BOSS` | 1 | Terminal main node. |
 
-Each template has a **difficulty tier** (1-5) and **weight** for random selection.
-
-### 4.4 Difficulty Tiers
-
-| Tier | Radius range | Bend angle | Bend frequency | Junction freq | Enemies |
-|---|---|---|---|---|---|
-| 1 (start) | 12-16 | 10-20° | low | none | none |
-| 2 | 10-14 | 15-30° | medium | 0-1 | chasers |
-| 3 | 8-12 | 20-45° | medium | 1-2 | chasers + ambushers |
-| 4 | 6-10 | 30-60° | high | 2-3 | all types |
-| 5 (boss) | 8-12 | 20-40° | medium | 1 | boss + enemies |
-
-Radius continuity: adjacent sections must have matching radii at the seam (±0.5).
-
----
-
-## 5. Generation Algorithm
-
-### 5.1 High-Level Flow
+Port records carry the exact transform used by the builder:
 
 ```
-generate(config):
-    rng = SeededRNG(config.seed)
-    graph = SectionGraph()
-    entry = graph.add_node(STRAIGHT, tier=1, params=defaults)
-    current = entry
-    depth = 0
-    max_depth = config.target_depth (e.g. 8-12 sections)
-
-    while depth < max_depth:
-        tier = difficulty_at(depth, max_depth)
-        # Decide: continue, branch, or rest zone
-        roll = rng.next_float()
-        if depth % config.rest_interval == 0 and depth > 0:
-            node = add_rest_zone(graph, current, tier)
-        elif roll < config.junction_prob(tier) and depth < max_depth - 2:
-            node = add_junction(graph, current, tier, rng)
-            # Recursively generate each branch (shorter)
-            for each branch exit:
-                generate_branch(graph, node, exit, tier+1, rng, remaining_depth)
-        else:
-            node = add_continuation(graph, current, tier, rng)
-        current = node
-        depth += 1
-
-    # Terminal: boss arena
-    boss = graph.add_node(BOSS_ARENA, tier=5, attached to current)
-    graph.validate()
-    return graph
+Port { position, forward (+Z flow), up/roll, radius, node_id, edge_id }
 ```
 
-### 5.2 Continuation Selection
-
-`add_continuation(graph, parent, tier, rng)`:
-1. Pick a section type from the weighted pool for this tier.
-2. Compute params: radius = clamp(parent.exit_radius + rng.range(-2, 2), tier.min_radius, tier.max_radius).
-   Length = rng.range(tier.min_length, tier.max_length).
-3. If type is BEND: bend_angle = rng.range(tier.min_angle, tier.max_angle), roll_angle = rng.choice([0, 90, 180, 270]) for 3D variety.
-4. Validate radius continuity: |new.entry_radius - parent.exit_radius| < 0.5.
-5. If invalid, retry with different params (up to 5 attempts), else fall back to STRAIGHT with matching radius.
-6. Add node, attach to parent's exit 0.
-
-### 5.3 Junction Generation
-
-`add_junction(graph, parent, tier, rng)`:
-1. Pick topology: has_trunk (rng 60%), left_branch (rng 70%), right_branch (rng 70%). Ensure at least 2 exits.
-2. tube_radius = parent.exit_radius (or clamped to tier range).
-3. branch_angle = rng.range(20, 45).
-4. branch_length = rng.range(60, 120).
-5. decision_offset = rng.range(15, 30).
-6. Add JUNCTION node.
-7. For each enabled exit, generate a sub-branch: a short chain (2-4 sections) ending in a dead end or reconnecting.
-8. Sub-branches use tier+1 difficulty.
-
-### 5.4 Sub-Branch Generation
-
-`generate_branch(graph, junction, exit_index, tier, rng, depth_budget)`:
-1. current = junction, exit = exit_index
-2. for i in range(depth_budget):
-   - type = pick from pool (tier)
-   - params = compute (radius from previous exit)
-   - add node, attach to current/exit
-   - current = node, exit = 0
-   - if rng.next() < config.dead_end_prob: break (branch ends)
-3. No boss arena on branches (only trunk reaches boss).
-
-### 5.5 Self-Intersection Avoidance
-
-After generating the graph, embed it in 3D:
-1. Walk the graph depth-first from entry.
-2. For each node, compute its transform from parent's exit transform (existing snapping).
-3. Check if the new section's bounding cylinder intersects any previous section's bounding cylinder (axis-aligned or OBB).
-4. If intersection: try rotating the bend's roll_angle by 90° (for bends) or reject the branch.
-5. If still intersecting: prune that branch (convert junction to fewer exits or remove branch).
-
-Simplification for v1: only check trunk path for intersections; branches are short and unlikely to collide. Full collision checking can be added later.
-
-### 5.6 Validation
-
-`graph.validate()`:
-- Every node reachable from entry.
-- Every non-root node has a parent.
-- All exit indices are valid.
-- No section has zero radius.
-- Radius continuity: |child.entry_radius - parent.exit_radius| < 1.0 for all edges.
-- At least one path reaches the boss arena.
-- Depth of boss arena >= config.min_depth.
-
-If validation fails, regenerate with seed+1 (up to 10 retries).
+Exact port transforms make loop closure a construction-time guarantee, not a search.
 
 ---
 
-## 6. Content Placement
+## 4. Geometry: Chains and Connectors
 
-### 6.1 Enemies
+### 4.1 Main-path edges: `CHAIN`
 
-- **Spawner placement**: Add an `EnemySpawner` to every straight section of tier >= 2.
-- **Ambush placement**: When generating a junction, spawn 1-2 ambushers at untraveled exits.
-- **Boss**: Single boss at the arena.
+Main-path edges are subdivided into existing `STRAIGHT`/`BEND` sections chosen to land as
+close as possible on the next port. Because both endpoints are fixed ports, the chain
+solver gets the endpoint transform as a target, not just a direction:
 
-### 6.2 Rest Zones
+1. Estimate the turn and distance between ports.
+2. Choose a bend angle/roll and straight lengths.
+3. Snap the chain to the parent exit, measure the residual error at the target port.
+4. Try a small set of bend/roll combinations and keep the best.
+5. If the residual exceeds tolerance, fall back to a `CONNECTOR` for that edge.
 
-- Place a `RestZone` section every `config.rest_interval` sections along the trunk.
-- Rest zones are wider (radius +5) and replace a straight section.
+This preserves the cheap cached straight/bend meshes for the common case.
 
-### 6.3 Signs
+### 4.2 Loop/side edges: `CONNECTOR` (new section type)
 
-- Place a `Sign` node before each junction (15 units before entry).
-- Sign text/color reflects the branch properties (e.g., "NARROW", "REST", "BOSS").
+A `ConnectorSection` is a swept tube along a cubic Hermite spline between two ports:
 
-### 6.4 Wall Colour
+```
+P(t) = h00(t) P0 + h10(t) m0 T0 + h01(t) P1 + h11(t) m1 T1
+```
 
-- Each branch's walls get a distinct colour (already via material overrides).
-- Signs use the same colour.
+- `P0/P1` = start/end port positions; `T0/T1` = port forward directions.
+- Tangents `m0/m1` are chosen from the port spacing and capped by a maximum curvature
+  (minimum bend radius ≥ `2 * radius`).
+- The path is offset sideways from the chord when a straight connector would clip other
+  tubes; candidate offsets are tested with a capsule/segment clearance check.
+- A parallel-transport frame sweeps `RING_SEGMENTS` rings; radius lerps between the port
+  radii (normally equal).
+- Mesh is emitted with inward normals and the correct clockwise front-face winding,
+  exactly like the straight/bend sections. Collision is a trimesh with back-face collision.
+- Entry/exit markers are set to the port transforms, so adjacent sections snap exactly.
+- Connectors are cached by `(P0, P1, T0, T1, radius, ring_segments)`.
 
----
+### 4.3 Seam and cap guarantees
 
-## 7. Implementation Plan
-
-### Phase 7.1 — Core Generator (Week 1)
-- [ ] Create `level_generator.gd` with `LevelConfig` and `SectionGraph`.
-- [ ] Implement `add_continuation`, `add_junction`, `generate_branch`.
-- [ ] Implement `NetworkBuilder` (graph → PipeNetwork calls).
-- [ ] Implement basic validation (reachability, radius continuity).
-- [ ] Replace `main.gd` hand-assembly with `LevelGenerator.generate(seed)`.
-
-### Phase 7.2 — Difficulty & Variety (Week 2)
-- [ ] Implement difficulty tiers and parameter scaling.
-- [ ] Add roll_angle variety to bends (3D routing).
-- [ ] Implement self-intersection avoidance for the trunk.
-- [ ] Add rest zone placement.
-- [ ] Add enemy spawner placement.
-
-### Phase 7.3 — Content & Polish (Week 3)
-- [ ] Sign placement with branch colours.
-- [ ] Boss arena placement at terminal node.
-- [ ] Validation retries (regenerate on failure).
-- [ ] Expose seed in main menu (input field or random).
-- [ ] Save/load the generated graph for debugging.
-
-### Phase 7.4 — Testing (Week 4)
-- [ ] Extend harness: generate 100 random seeds, validate all.
-- [ ] Add traversal test: vehicle reaches boss on generated levels.
-- [ ] Add performance test: generation < 1s for 100 seeds.
-- [ ] Add edge cases: seed 0, very small/large depth.
+- Every attached seam must have coincident centre, plane normal and radius (existing
+  visibility harness).
+- Every unconnected mouth is capped (`EndCap` mesh + collision).
+- Connectors participate in the same `attached_from`/`attached_exit` bookkeeping.
 
 ---
 
-## 8. Testing Strategy
+## 5. Generation Pipeline
 
-### 8.1 Unit Tests (Headless)
-- `test_level_generator.gd`: generate N seeds, assert validity, no crashes.
-- `test_level_traversal.gd`: drive through each generated level, assert reachability.
-- `test_level_radius.gd`: assert radius continuity at all seams.
-- `tests/visibility_harness.gd`: every section has a mesh, every triangle's winding
-  matches Godot's clockwise front-face convention so it renders from inside, radial
-  rays from the centreline reach a wall (2976 rays on the default seed), connected
-  seams meet with matching centre/normal/radius, and every uncovered mouth is capped.
+```
+generate(seed, config):
+    rng = SeededRNG(seed)
 
-### 8.2 Invariants
-- Every generated level has a path from entry to boss.
-- No section has radius < 4 or > 25.
-- No two sections of the trunk intersect.
-- Generation time < 1s per level.
-- 100 consecutive seeds all valid (no regeneration failures).
+    # 1. Main route
+    anchors = place_meandering_route(rng, config)
+    graph = build_main_chain(anchors)
 
-### 8.3 Property-Based Testing
-- Use the existing harness infrastructure.
-- Generate levels with random seeds and validate invariants.
-- Report the first failing seed and its graph.
+    # 2. Zone assignment and port radii
+    assign_zones(graph, config)                 # 5 zones, monotonic narrowing
+    assign_ports_and_radii(graph)
+
+    # 3. Loops
+    for candidate in loop_candidates(graph, rng):
+        if graph.loop_count >= config.max_loops: break
+        if clearance_ok(candidate): add_loop_edge(graph, candidate)
+
+    # 4. Side paths
+    for anchor in choose_side_anchors(graph, rng, config.side_path_count):
+        add_side_path(graph, anchor, rng)
+
+    # 5. Realize geometry
+    for edge in graph.ordered_edges():
+        edge.sections = solve_chain_or_connector(edge)
+
+    # 6. Content, threat zones, rewards
+    place_rests(graph)                          # zone boundaries
+    place_rewards(graph)                        # end of side paths
+    place_setpieces(graph)                      # junctions, loop arenas
+    build_threat_curve(graph)
+
+    # 7. Validate, repair, fallback
+    return graph if validate(graph) else regenerate(seed + 1)
+```
+
+### 5.1 Zone assignment
+
+Zones are assigned by main-path arc length, not node count:
+
+| Zone | Main progress | Radius | Enemy theme |
+|---|---|---|---|
+| 1 | 0–20% | 12–16 | slow chasers, tutorial density |
+| 2 | 20–40% | 10–14 | runners, first ambushers |
+| 3 | 40–60% | 9–12 | tanks, mixed packs, first elites |
+| 4 | 60–80% | 8–10 | ranged/chargers, elite packs, loop guards |
+| 5 | 80–100% | 7–9 | champions, mini-boss, boss arena |
+
+Radius is continuous at every seam and narrows monotonically within tolerance.
+
+### 5.2 Loop placement algorithm
+
+1. Build candidate pairs from anchors `i < j`, `2 ≤ j − i ≤ max_loop_span`.
+2. Reject if either anchor already has a loop port.
+3. Estimate a connector path; reject if it intersects existing tubes or has curvature
+   below the minimum.
+4. Score candidates by `shortcut_length * tension` where `tension` favours loops that
+   cross the main route's bends and create interesting flanking space.
+5. Take the best 2–4, mark their ports, add `LOOP` edges.
+
+Loops are generated **before** side paths so they claim the spare junction branches.
+
+### 5.3 Side-path placement
+
+- Choose anchors in zones 2–4, spaced at least two zones apart.
+- The side path starts at a junction branch and ends in a `REWARD` chamber.
+- Reward type is seeded: sigil upgrade, spell mod, heal, or elite chest.
+- Side path enemies use `zone + 1` threat, so the detour is risky but rewarding.
+
+### 5.4 Self-intersection and clearance
+
+All geometry is checked with capsule/segment distances:
+
+- Anchor segments vs. all existing anchor segments.
+- Connector samples vs. section centreline segments (radius-aware).
+- Reject/adjust candidates rather than regenerating the whole level.
+- If a loop cannot be routed, drop it; the minimum loop count is enforced by trying
+  additional candidate pairs before falling back to a new seed.
 
 ---
 
-## 9. Risks & Mitigations
+## 6. Threat Director (VS-like escalation)
+
+Replace the current per-network random `EnemySpawner` with a single `ThreatDirector`.
+
+### 6.1 Inputs
+
+```
+progress     // 0..1, monotonic furthest main-path progress
+zone         // 1..5
+player       // position, health, spells
+network      // sections, loops, visited graph
+time_in_run
+```
+
+### 6.2 Two-phase curve
+
+- **Phase A — Density (0–45%):** spawn rate and max-alive climb; enemy types stay simple.
+- **Phase B — Quality (45–80%):** density plateaus; new archetypes, elites, and modifiers
+  unlock; enemy HP/damage scale.
+- **Phase C — Pressure (80–100%):** champion packs and mini-boss waves between the player
+  and the arena; boss scaled by threat level.
+
+Suggested starting numbers (all exported/tunable):
+
+| Zone | Progress | Max alive | Spawn interval | Batch | Elite chance | Stat scale |
+|---|---|---|---|---|---|---|
+| 1 | 0–20% | 8–16 | 3.0 → 2.2 s | 1 | 0% | 1.00 |
+| 2 | 20–40% | 16–30 | 2.2 → 1.4 s | 1–2 | 0–5% | 1.10 |
+| 3 | 40–60% | 30–40 | 1.4 → 1.0 s | 2 | 5–12% | 1.25 |
+| 4 | 60–80% | 38–46 | 1.0 → 0.8 s | 2–3 | 12–22% | 1.45 |
+| 5 | 80–100% | 44–50 | 0.8 → 0.6 s | 3 | 22–35% | 1.70 |
+
+`spawn_interval` and `max_alive` are clamped by measured frame time; if the budget is
+exceeded, spawns are deferred rather than dropped forever.
+
+### 6.3 Director state machine
+
+```
+AMBIENT   → normal budget, spawn behind/off-screen
+PRESSURE  → when player health drops or a loop is entered: spawn ahead to cut off
+WAVE      → every 45–75 s: one coordinated pack from a loop/side port
+BREATHER  → 10 s after a rest chamber: reduced budget
+BOSS      → arena seals, director stops ambient spawns, boss adds only
+```
+
+Spawn placement rules:
+
+- Never inside a wall: sample a point on a section centreline with radial offset
+  `< radius - enemy_radius`.
+- Prefer: behind the player on the main path (chase), or out of a loop/side port
+  (flank), or just beyond the next bend (surprise).
+- Enforce a minimum distance from the player (e.g. 25–40 units) and a maximum (80).
+- Ambushers may pre-place at untravelled junction exits, as today.
+
+### 6.4 Enemy progression
+
+| Tier | Archetypes | Role |
+|---|---|---|
+| 1 | Chaser | Basic pursuit; slow. |
+| 2 | Runner | Faster, lower HP; punishes standing still. |
+| 3 | Tank / Ambusher | Walls and junction traps. |
+| 4 | Charger / Ranged | Lane denial, forces movement. |
+| 5 | Champion | Elite modifiers, telegraphs, big HP. |
+
+Elite modifiers (stack 1–2): `Armored`, `Hasted`, `Volatile` (death burst), `Splitter`,
+`Shielded` (weak to a sigil family). Elites drop guaranteed upgrades/XP.
+
+### 6.5 Boss scaling
+
+Boss HP/damage = base × `stat_scale` at the arena zone; number of adds and attack
+frequency follow the same curve. The boss arena is capped, so the fight cannot spill
+into the void.
+
+---
+
+## 7. Content Cadence
+
+| Progress | Beat |
+|---|---|
+| 0% | Start chamber, first weak pack, sign "FOLLOW THE PIPE" |
+| 15–20% | First rest chamber + spell choice |
+| 20% | First junction: side path + loop choice |
+| 40% | Mid-zone rest, first elite |
+| 50–60% | Loop arena / champion wave |
+| 75% | Final rest, boss warning sign |
+| 100% | Boss arena |
+
+Rest chambers are safe pockets: no ambient spawns within the chamber, healing/shield,
+and one choice. Side-path rewards are always visible from the junction sign.
+
+---
+
+## 8. Validation & Invariants
+
+### 8.1 Topology
+
+- Graph is connected; boss reachable from entry.
+- `loop_count ∈ [config.min_loops, config.max_loops]` (2–4 default).
+- `side_path_count ∈ [3, 6]`; every side path ends in a `REWARD` node.
+- No node degree exceeds 4; no orphan ports.
+- Main path length within target bounds (e.g. 45–75 sections).
+- Loops connect anchors at least two macro nodes apart.
+- Determinism: same seed → identical graph hash.
+
+### 8.2 Geometry
+
+- All seams: gap < 0.75, plane angle < 5°, radius mismatch < 0.75 (existing harness).
+- Every section renders from inside; every triangle winding matches Godot's clockwise
+  front-face convention.
+- No uncapped mouth.
+- No centreline segment closer than `r1 + r2 + margin` to another non-adjacent segment.
+- Connector curvature radius ≥ `2 * tube_radius`.
+
+### 8.3 Gameplay
+
+- Threat level/stat scale is monotonic non-decreasing with progress.
+- Director never exceeds `max_alive` or the frame-time budget.
+- Spawn points are inside the tube and at least `min_spawn_distance` from the player.
+- Elite/champion unlocks only after their configured progress thresholds.
+- No reward chamber is unreachable or un-rewarded.
+
+---
+
+## 9. Testing Strategy
+
+### 9.1 Generation harness (new: `tests/generation_harness.gd`)
+
+For seeds 0–99:
+
+- generate and validate topology (connectivity, loops, side paths, degrees),
+- assert main-path length and zone order,
+- assert loop anchors and connector closure (endpoint equals port transform),
+- assert clearance and curvature,
+- hash the graph summary for determinism,
+- assert generation time < 1 s per level; print worst seed.
+
+### 9.2 Geometry harness (extend `tests/visibility_harness.gd`)
+
+- Connectors are included in winding, seam, cap and enclosure checks.
+- Loop connectors at junction ports must pass the same seam gap/radius tests.
+
+### 9.3 Director harness (new: `tests/director_harness.gd`)
+
+Simulate progress 0→1 and time:
+
+- threat curve monotonic,
+- density plateau then quality ramp,
+- elite/champion thresholds,
+- max-alive/budget clamps,
+- spawn positions valid (inside tube, distance band),
+- boss scaling.
+
+### 9.4 Run simulation (stretch)
+
+Headless auto-drive along the main path plus loops for N seeds; assert the player can
+reach the boss, no section oscillation deadlocks, and the director keeps pressure.
+
+---
+
+## 10. Implementation Phases
+
+### Phase A — Topology data model & validation
+- [ ] `MacroGraph`, `MacroNode`, `MacroEdge`, `Port` classes inside `level_generator.gd`.
+- [ ] Seeded meandering route placement with spatial hash.
+- [ ] Loop/side candidate generation and degree constraints.
+- [ ] `tests/generation_harness.gd` for topology only (no geometry yet).
+- **Acceptance:** 100 seeds produce connected graphs with 2–4 loops and 3–6 side paths.
+
+### Phase B — Connector geometry
+- [ ] `ConnectorSection` (spline sweep, mesh, collision, markers, caching).
+- [ ] Clearance/curvature validation for connectors.
+- [ ] Extend visibility harness; verify seams/caps/winding on connectors.
+- **Acceptance:** loops close exactly; all geometry checks pass on 100 seeds.
+
+### Phase C — Builder v2
+- [ ] Chain solver with endpoint residual and connector fallback.
+- [ ] Build main path, loops, side paths; map macro nodes to `JunctionPipeSection`,
+  `RestZone`, `BossArena`, and a new `RewardChamber`.
+- [ ] Feature flag `generation_version = 2` with v1 fallback.
+- **Acceptance:** playable looped level; existing driving/lighting/visibility harness green.
+
+### Phase D — ThreatDirector
+- [ ] `ThreatDirector` replaces `EnemySpawner` ambient logic (ambush pre-placement kept).
+- [ ] Progress tracking from main-path distance (monotonic).
+- [ ] Enemy tiers, stat scaling, elites/champions, waves, boss scaling.
+- [ ] `tests/director_harness.gd`.
+- **Acceptance:** density→quality curve verified; no budget overruns in simulation.
+
+### Phase E — Rewards & polish
+- [ ] Reward chambers (spell/sigil/heal/chest) and rest choices.
+- [ ] Zone signage and lighting; loop/side markers.
+- [ ] Balance pass on 12–18 minute target; seed exposure in the menu.
+- [ ] Save/load generated graph for debugging.
+
+---
+
+## 11. Configuration Sketch
+
+```gdscript
+class_name LevelConfig
+extends Resource
+
+@export var seed: int = 12345
+@export var target_run_minutes: float = 15.0
+@export var min_main_sections: int = 45
+@export var max_main_sections: int = 75
+@export var min_loops: int = 2
+@export var max_loops: int = 4
+@export var max_loop_span: int = 8
+@export var side_paths: int = 4
+@export var side_path_min_sections: int = 2
+@export var side_path_max_sections: int = 5
+@export var zone_count: int = 5
+@export var min_radius: float = 6.0
+@export var max_radius: float = 16.0
+@export var rest_per_zone: int = 1
+@export var max_alive_start: int = 10
+@export var max_alive_end: int = 50
+@export var spawn_interval_start: float = 3.0
+@export var spawn_interval_end: float = 0.6
+@export var elite_start_progress: float = 0.45
+@export var champion_start_progress: float = 0.8
+@export var generation_version: int = 2
+```
+
+---
+
+## 12. Metrics to Log Per Seed
+
+- seed, generation time
+- macro node/edge counts, loop count, side-path count
+- main-path section count and length
+- section type histogram, radius range
+- worst seam gap/angle/radius error
+- connector count and worst curvature/clearance
+- threat curve samples at 0/25/50/75/100%
+- graph summary hash (determinism)
+
+---
+
+## 13. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Self-intersection makes levels invalid | Start with 2D (flat) generation, add 3D bends later. Retry on failure. |
-| Branches create dead ends | Limit branch depth; ensure trunk always reaches boss. |
-| Performance of CSG mesh generation | Cache by (type, params); pre-build common variants. |
-| Difficulty curve feels wrong | Expose tier params as exports; iterate with playtesting. |
-| Radius mismatch at seams | Validate and reject; fall back to matching radius. |
+| Loop connectors clip existing tubes | Capsule clearance check; side-offset routing; drop loop and try another pair. |
+| Connector kinks make the vehicle snag | Minimum curvature radius; seam/plane validation; keep connectors wide. |
+| Loops trivialize the run | Limit shortcut distance/spans; put elite packs on loops; main path still gates zones. |
+| Enemy density tanks performance | CPU spawn budget from frame time; max-alive caps; instancing later. |
+| Difficulty curve feels flat | Data-driven table; log threat curve; playtest per zone. |
+| Side paths feel mandatory or useless | Guaranteed reward + `zone + 1` risk; signpost before committing. |
+| Deterministic regeneration diverges | Single RNG stream; graph hash test; avoid `randf()` from globals. |
 
 ---
 
-## 10. Open Questions
+## 14. Open Questions
 
-1. Should levels be **linear with branches** (spec §6) or **fully procedural graphs**?
-2. Should the generator produce **loops** (reconnecting branches) for replayability?
-3. What is the target **floor length** (number of sections)? 8-12? 15-20?
-4. Should **enemy placement** be part of generation or a separate pass?
-5. Should the level be **saved as a resource** for debugging/replay?
-
----
-
-## 11. Immediate Next Steps
-
-1. Create `level_generator.gd` skeleton with `LevelConfig` and `SectionGraph`.
-2. Implement `add_continuation` with radius continuity validation.
-3. Replace `main.gd` hand-assembly with `LevelGenerator.generate(12345)`.
-4. Run the harness on the generated level.
-5. Add junction generation once the linear path works.
+1. Target run length: **12, 15 or 18 minutes**? The tables above assume 15.
+2. Should loops be **shortcuts** (skip content) or **detours** (extra content)? Plan supports
+   both; default is a shortcut with an elite guard.
+3. Keep the current **crafting/spell UI**, or move to VS-style automatic level-up choices?
+   Phase E assumes the current UI, with rewards granting spell/sigil choices.
+4. Are **mini-bosses** at zone boundaries wanted, or only one final boss?
+5. Should the main path be visually distinct (light strips/signs), or should route choice
+   be ambiguous for exploration?

@@ -203,7 +203,7 @@ caching is implemented. Procedural level generation (seeded, validated, with dif
 progression and junctions) replaces hand-authored levels. Export templates are not
 available in this environment.
 
-### Level Generation (new subsystem)
+### Level Generation (v1 implemented, v2 planned)
 - **LevelGenerator**: seeded RNG, graph-based generation, validation, network building.
 - **SectionGraph**: nodes with type, params, exits, parent, depth.
 - **Difficulty tiers**: radius narrows, bends sharpen, junctions appear as depth increases.
@@ -217,19 +217,13 @@ available in this environment.
   without lateral gaps or tilted planes.
 - **Sealed ends**: every mouth with no attached section (level start, dead ends,
   unused junction exits, arena far end) is closed by an `EndCap` mesh + collision.
-- **Testing**: `tests/run.sh` → 917 checks (42 sections traversed, 0 radius error);
-  `tests/run_lighting.sh` → 173 checks (interior normals and seams);
-  `tests/run_visibility.sh` → 323 checks, 2976 rays (mesh presence, triangle
-  winding so the interior is the front face under Godot's clockwise convention,
-  wall enclosure, seam alignment/gap/radius between connected sections, and
-  sealed (capped) open ends).
-- **Dead ends**: every mouth without a child section — level start, branch dead
-  ends, unused junction exits, arena far end — gets an `EndCap` mesh and
-  collision, so no open pipe end shows the void.
-- **Junction seams**: branch tubes are built along the exit-marker axis with
-  their far cap centre exactly on the marker, so attached sections meet the
-  junction without lateral gaps or a tilted seam plane.
-  All three pass on generated levels.
+- **Testing**: `tests/run.sh` → 917 checks; `tests/run_lighting.sh` → 173 checks;
+  `tests/run_visibility.sh` → 323 checks, 2976 rays (mesh presence, winding,
+  enclosure, seam alignment/gap/radius, capped ends). All pass on generated levels.
+- **Next (v2)**: `docs/level_generation_plan.md` defines the run-based redesign:
+  a meandering main path with 2–4 loops and 3–6 side paths, exact loop closure via
+  spline `ConnectorSection`s, and a `ThreatDirector` that ramps enemy density first,
+  then enemy quality (elites/champions) toward a scaled boss. Not implemented yet.
 
 Deliverables:
 1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
