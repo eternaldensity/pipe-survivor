@@ -45,8 +45,12 @@ func generate(net: PipeNetwork) -> void:
 			next_node = _add_rest_zone(current, tier)
 		elif rng.randf() < _junction_prob(tier) and depth < target_depth - 2:
 			next_node = _add_junction(current, tier)
-			# Generate branches.
-			_generate_branches(next_node, tier, rng)
+			# _add_junction already calls _generate_branches internally.
+			# If the junction has a trunk, add a trunk continuation immediately
+			# so the main path follows the trunk, not a branch.
+			if _get_param(_graph[next_node]["params"], "has_trunk", true):
+				var trunk_cont := _add_continuation(next_node, tier)
+				next_node = trunk_cont
 		else:
 			next_node = _add_continuation(current, tier)
 		current = next_node
@@ -79,6 +83,11 @@ func _tier_for_depth(depth: int, max_depth: int) -> int:
 func _junction_prob(tier: int) -> float:
 	return junction_prob_base + tier * 0.05
 
+func _get_param(d: Dictionary, key: String, default_val: Variant) -> Variant:
+	if d.has(key):
+		return d[key]
+	return default_val
+
 func _add_node(type: SectionType, tier: int, params: Dictionary) -> int:
 	var node := {
 		"id": _node_count,
@@ -96,12 +105,10 @@ func _add_node(type: SectionType, tier: int, params: Dictionary) -> int:
 
 func _add_continuation(parent_id: int, tier: int) -> int:
 	var parent: Dictionary = _graph[parent_id]
-	var parent_exit_r: float = parent["params"].get("exit_radius", parent["params"].get("tube_radius", 10.0))
+	var parent_exit_r: float = _get_param(parent["params"], "exit_radius", _get_param(parent["params"], "tube_radius", 10.0))
 	# Compute entry radius from parent with small variation.
-	var entry_r: float = clampf(parent_exit_r + rng.randf_range(-0.5, 0.5), min_radius, max_radius)
-	# Match parent if too far.
-	if absf(entry_r - parent_exit_r) > 0.5:
-		entry_r = parent_exit_r
+	# Match the parent's exit radius exactly for seam continuity.
+	var entry_r: float = clampf(parent_exit_r, min_radius, max_radius)
 	var exit_r: float = clampf(entry_r + rng.randf_range(-1.0, 1.0), min_radius, max_radius)
 	var length: float = rng.randf_range(60.0, 150.0)
 
@@ -124,36 +131,41 @@ func _add_continuation(parent_id: int, tier: int) -> int:
 		var node_id := _add_node(SectionType.BEND, tier, params)
 		_graph[node_id]["parent"] = parent_id
 		_graph[node_id]["depth"] = _graph[parent_id]["depth"] + 1
-		parent["exits"].append(node_id)
+		_attach_child(parent, node_id)
 		return node_id
 
 	var node_id := _add_node(SectionType.STRAIGHT, tier, params)
 	_graph[node_id]["parent"] = parent_id
 	_graph[node_id]["depth"] = _graph[parent_id]["depth"] + 1
-	# If parent is a junction, attach to the trunk exit (0) if available.
-	if parent["type"] == SectionType.JUNCTION and parent["params"].get("has_trunk", false):
-		if parent["exits"].size() == 0 or parent["exits"][0] == null or parent["exits"][0] < 0:
-			if parent["exits"].size() == 0:
-				parent["exits"].resize(1)
-			parent["exits"][0] = node_id
+	_attach_child(parent, node_id)
+	return node_id
+
+func _attach_child(parent: Dictionary, node_id: int) -> void:
+	# If parent is a junction, attach to the first null exit slot (trunk) if
+	# available, otherwise append.
+	if parent["type"] == SectionType.JUNCTION:
+		var slot := -1
+		for i in range(parent["exits"].size()):
+			if parent["exits"][i] == null:
+				slot = i
+				break
+		if slot >= 0:
+			parent["exits"][slot] = node_id
 		else:
 			parent["exits"].append(node_id)
 	else:
 		parent["exits"].append(node_id)
-	return node_id
 
 func _add_junction(parent_id: int, tier: int) -> int:
 	var parent: Dictionary = _graph[parent_id]
-	var r: float = parent["params"].get("exit_radius", parent["params"].get("tube_radius", 10.0))
+	var r: float = _get_param(parent["params"], "exit_radius", _get_param(parent["params"], "tube_radius", 10.0))
 	r = clampf(r, min_radius, max_radius)
 
-	var has_trunk := rng.randf() < 0.7
+	var has_trunk := true  # main path always has a trunk
 	var left := rng.randf() < 0.75
 	var right := rng.randf() < 0.75
 	if not left and not right:
 		left = true  # ensure at least one branch
-	if not has_trunk and not left and not right:
-		has_trunk = true
 
 	var params := {
 		"tube_radius": r,
@@ -169,7 +181,8 @@ func _add_junction(parent_id: int, tier: int) -> int:
 	var node_id := _add_node(SectionType.JUNCTION, tier, params)
 	_graph[node_id]["parent"] = parent_id
 	_graph[node_id]["depth"] = _graph[parent_id]["depth"] + 1
-	parent["exits"].append(node_id)
+	_attach_child(parent, node_id)
+	_generate_branches(node_id, tier, rng)
 	return node_id
 
 func _generate_branches(junction_id: int, tier: int, r: RandomNumberGenerator) -> void:
@@ -204,15 +217,13 @@ func _add_continuation_branch(parent_id: int, exit_idx: int, tier: int) -> int:
 	var parent: Dictionary = _graph[parent_id]
 	var parent_exit_r: float
 	if parent["type"] == SectionType.JUNCTION:
-		parent_exit_r = parent["params"].get("tube_radius", 10.0)
+		parent_exit_r = _get_param(parent["params"], "tube_radius", 10.0)
 	else:
-		parent_exit_r = parent["params"].get("exit_radius", parent["params"].get("tube_radius", 10.0))
+		parent_exit_r = _get_param(parent["params"], "exit_radius", _get_param(parent["params"], "tube_radius", 10.0))
 	parent_exit_r = clampf(parent_exit_r, min_radius, max_radius)
 
 	var entry_r: float = parent_exit_r
-	var exit_r: float = clampf(entry_r + rng.randf_range(-0.5, 0.5), min_radius, max_radius)
-	if absf(exit_r - entry_r) > 0.5:
-		exit_r = entry_r
+	var exit_r: float = entry_r
 	var length: float = rng.randf_range(40.0, 80.0)
 
 	var is_bend := rng.randf() < 0.4
@@ -243,7 +254,7 @@ func _add_continuation_branch(parent_id: int, exit_idx: int, tier: int) -> int:
 
 func _add_rest_zone(parent_id: int, tier: int) -> int:
 	var parent: Dictionary = _graph[parent_id]
-	var r: float = parent["params"].get("exit_radius", parent["params"].get("tube_radius", 10.0))
+	var r: float = _get_param(parent["params"], "exit_radius", _get_param(parent["params"], "tube_radius", 10.0))
 	r = clampf(r, min_radius, max_radius)
 	var params := {
 		"entry_radius": r,
@@ -253,12 +264,12 @@ func _add_rest_zone(parent_id: int, tier: int) -> int:
 	var node_id := _add_node(SectionType.REST_ZONE, tier, params)
 	_graph[node_id]["parent"] = parent_id
 	_graph[node_id]["depth"] = _graph[parent_id]["depth"] + 1
-	parent["exits"].append(node_id)
+	_attach_child(parent, node_id)
 	return node_id
 
 func _add_boss_arena(parent_id: int, tier: int) -> int:
 	var parent: Dictionary = _graph[parent_id]
-	var r: float = parent["params"].get("exit_radius", parent["params"].get("tube_radius", 10.0))
+	var r: float = _get_param(parent["params"], "exit_radius", _get_param(parent["params"], "tube_radius", 10.0))
 	r = clampf(r, min_radius, max_radius)
 	var params := {
 		"entry_radius": r,
@@ -268,7 +279,7 @@ func _add_boss_arena(parent_id: int, tier: int) -> int:
 	var node_id := _add_node(SectionType.BOSS_ARENA, tier, params)
 	_graph[node_id]["parent"] = parent_id
 	_graph[node_id]["depth"] = _graph[parent_id]["depth"] + 1
-	parent["exits"].append(node_id)
+	_attach_child(parent, node_id)
 	return node_id
 
 func _validate() -> bool:
@@ -299,8 +310,8 @@ func _validate() -> bool:
 		if node["parent"] < 0:
 			continue
 		var parent: Dictionary = _graph[node["parent"]]
-		var parent_r: float = parent["params"].get("exit_radius", parent["params"].get("tube_radius", 10.0))
-		var child_r: float = node["params"].get("entry_radius", node["params"].get("tube_radius", 10.0))
+		var parent_r: float = _get_param(parent["params"], "exit_radius", _get_param(parent["params"], "tube_radius", 10.0))
+		var child_r: float = _get_param(node["params"], "entry_radius", _get_param(node["params"], "tube_radius", 10.0))
 		if absf(parent_r - child_r) > 1.0:
 			return false
 	return true
@@ -326,6 +337,8 @@ func _build_network() -> void:
 				if parent_node["exits"][i] == node["id"]:
 					exit_idx = i
 					break
+			if parent_section == null:
+				print("NULL PARENT for node", node["id"], "parent", node["parent"])
 			section = network.add_section(packed, props, parent_section, exit_idx)
 		section_map[node["id"]] = section
 
