@@ -36,18 +36,20 @@ func _run_all() -> void:
 func _test_driving() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
+	for i in range(10): await process_frame
 	Input.action_press("ui_up")
 	var nan_count := 0
 	var min_r := 1e9
 	var max_r := 0.0
 	var max_radius_error := 0.0
-	var seen: Array[String] = []
-	var last := ""
+	var seen: Array[PipeSection] = []
+	var last: PipeSection = null
 	var outside_frames := 0
 	for i in range(12000):
 		await process_frame
 		var v = main.get_node("Vehicle")
 		var net = main.get_node("PipeNetwork")
+
 		var sec = net.get_section_at(v.global_position)
 		if sec == null:
 			_fail("driving: null section at frame %d" % i)
@@ -59,9 +61,11 @@ func _test_driving() -> void:
 				break
 			continue
 		outside_frames = 0
-		if sec.name != last:
-			seen.append(sec.name)
-			last = sec.name
+		if sec != last:
+			seen.append(sec)
+			last = sec
+			if seen.size() <= 5:
+				print("DRIVING: section", seen.size(), sec.name, "at z=", v.global_position.z)
 		var p: Dictionary = sec.get_tube_properties(v.global_position)
 		var r : float = (v.global_position - p["origin"]).length()
 		var rad: float = p["radius"]
@@ -215,7 +219,7 @@ func _test_branch() -> void:
 func _test_properties() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	await process_frame
+	for i in range(10): await process_frame
 	var net = main.get_node("PipeNetwork")
 	for s in net.sections:
 		if s is StraightPipeSection:
@@ -262,7 +266,7 @@ func _test_properties() -> void:
 func _test_seams() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	await process_frame
+	for i in range(10): await process_frame
 	var net = main.get_node("PipeNetwork")
 	var count := 0
 	for s in net.sections:

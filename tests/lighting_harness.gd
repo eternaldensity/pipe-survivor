@@ -147,7 +147,7 @@ func _test_bend_normals() -> void:
 func _test_seam_continuity() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	for i in range(5): await process_frame
+	for i in range(15): await process_frame
 	var net = main.get_node("PipeNetwork")
 	# For each pair of connected sections, check that normals at the seam
 	# are consistent (the lighting boundary should be continuous).
@@ -157,12 +157,13 @@ func _test_seam_continuity() -> void:
 		if ps.attached_from == null:
 			continue
 		var prev: PipeSection = ps.attached_from
-		# Find the shared ring: vertices of prev near its exit and vertices of
-		# s near its entry. Compare their normal directions.
-		var prev_exit: Vector3 = prev.exit.global_position
+		# The attachment exit may be one of several (junction branches).
+		var exit_idx: int = ps.attached_exit
+		var exit_marker: Marker3D = prev.exits[exit_idx] if exit_idx >= 0 and exit_idx < prev.exits.size() else prev.exit
+		var prev_exit: Vector3 = exit_marker.global_position
 		var curr_entry: Vector3 = s.entry.global_position
-		# Sample a point on the seam (midpoint of exit/entry).
-		var seam_pos: Vector3 = (prev_exit + curr_entry) * 0.5
+		# Use the actual snapped entry point as the seam sample.
+		var seam_pos: Vector3 = curr_entry
 		# Check that both sections report similar normals at the seam.
 		var prev_props: Dictionary = prev.get_tube_properties(seam_pos)
 		var curr_props: Dictionary = s.get_tube_properties(seam_pos)
