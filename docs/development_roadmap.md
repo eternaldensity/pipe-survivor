@@ -208,7 +208,7 @@ Deliverables:
 2. **[Done]** Main menu, pause (Esc), game-over/victory overlay with restart (R).
 3. **[Partial]** Basic audio: AudioManager with generated tones for engine, collision,
    and spell sounds. Real audio files can replace the generated tones.
-4. **[Partial]** Performance pass: in-memory mesh caching by parameter key avoids
+4. **[Done]** Performance pass: in-memory and disk mesh caching by parameter key avoids
    rebuilding identical junctions. Collision meshes generated at runtime. Further
    optimization (instancing, LOD) pending.
 5. **[Open]** Build/export for desktop (export templates not available in this
