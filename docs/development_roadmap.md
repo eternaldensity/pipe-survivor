@@ -198,18 +198,21 @@ Deliverables:
 **Goal:** Small, shippable package.
 
 **Status:** First pass implemented. Main menu, pause menu (Esc), game-over/victory overlay
-with restart (R), and an audio manager (placeholder players) are in place. The main scene
-is now the main menu, transitioning to the game on "Start Game". Performance pass and
-export are still pending.
+with restart (R), and an audio manager (with generated tones) are in place. The main scene
+is now the main menu, transitioning to the game on "Start Game". In-memory mesh caching
+is implemented. Export templates are not available in this environment.
 
 Deliverables:
 1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
    Network, spells, enemies, and boss are implemented. More polish needed.
 2. **[Done]** Main menu, pause (Esc), game-over/victory overlay with restart (R).
-3. **[Partial]** Basic audio: AudioManager with engine/collision/spell players (placeholder
-   streams; real audio files needed).
-4. **[Open]** Performance pass (instancing, collision cost).
-5. **[Open]** Build/export for desktop.
+3. **[Partial]** Basic audio: AudioManager with generated tones for engine, collision,
+   and spell sounds. Real audio files can replace the generated tones.
+4. **[Partial]** Performance pass: in-memory mesh caching by parameter key avoids
+   rebuilding identical junctions. Collision meshes generated at runtime. Further
+   optimization (instancing, LOD) pending.
+5. **[Open]** Build/export for desktop (export templates not available in this
+   environment).
 
 ---
 
