@@ -207,9 +207,14 @@ available in this environment.
 - **LevelGenerator**: seeded RNG, graph-based generation, validation, network building.
 - **SectionGraph**: nodes with type, params, exits, parent, depth.
 - **Difficulty tiers**: radius narrows, bends sharpen, junctions appear as depth increases.
+- **Junctions**: main path always follows the trunk; side branches are generated with
+  their own sub-chains (2-4 sections) ending in dead ends.
 - **Content placement**: rest zones, signs, enemies, boss, spawner.
 - **Validation**: reachability, radius continuity, boss exists, min depth.
-- **Harness**: 587 checks pass on generated levels.
+- **Continuity**: each section's entry radius matches its parent's exit radius exactly;
+  bends use a constant radius equal to that seam radius.
+- **Testing**: `tests/run.sh` → 917 checks (42 sections traversed, 0 radius error);
+  `tests/run_lighting.sh` → 173 checks. Both pass on generated levels.
 
 Deliverables:
 1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
