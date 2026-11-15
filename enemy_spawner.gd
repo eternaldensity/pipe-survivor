@@ -4,6 +4,7 @@ extends Node3D
 
 @export var chaser_scene: PackedScene
 @export var ambusher_scene: PackedScene
+@export var tank_scene: PackedScene
 @export var network: PipeNetwork
 @export var target: Node3D
 @export var spawn_interval: float = 3.0
@@ -55,6 +56,32 @@ func _spawn_if_possible() -> void:
 
 	# Spawn a chaser from a section behind the player.
 	_spawn_chaser()
+	# Occasionally spawn a tank.
+	if randf() < 0.3:
+		_spawn_tank()
+
+func _spawn_tank() -> void:
+	if tank_scene == null:
+		return
+	var spawn_pos := _find_spawn_position_behind()
+	if spawn_pos == Vector3.ZERO:
+		return
+	var enemy := tank_scene.instantiate() as EnemyVehicle
+	if enemy == null:
+		return
+	enemy.enemy_type = EnemyVehicle.EnemyType.TANK
+	enemy.network = network
+	enemy.target = target
+	# Tanks are weak to elongated (high aspect ratio) sigils.
+	enemy.weakness_family = "Lorenz"
+	enemy.weakness_multiplier = 2.5
+	enemy.weakness_feature = "elongated"
+	enemy.weakness_feature_threshold = 1.2
+	var parent := get_parent()
+	if parent:
+		parent.add_child(enemy)
+		enemy.global_position = spawn_pos
+	_enemies.append(enemy)
 
 func _spawn_chaser() -> void:
 	if chaser_scene == null:

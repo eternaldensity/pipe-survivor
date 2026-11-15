@@ -13,6 +13,11 @@ collision_layer = 2
 collision_mask = 1
 script = ExtResource("1_ce")
 enemy_type = 0
+weakness_family = "Lorenz"
+weakness_multiplier = 1.5
+weakness_rho_above = 30.0
+weakness_feature = "high_lobe"
+weakness_feature_threshold = 3.0
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("BoxMesh_ce")

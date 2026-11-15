@@ -2,7 +2,7 @@
 class_name EnemyVehicle
 extends CharacterBody3D
 
-enum EnemyType { CHASER, AMBUSHER }
+enum EnemyType { CHASER, AMBUSHER, TANK }
 
 @export var enemy_type: EnemyType = EnemyType.CHASER
 @export var network: PipeNetwork
@@ -40,6 +40,9 @@ func _ready() -> void:
 		EnemyType.AMBUSHER:
 			speed = 8.0
 			health = 4.0
+		EnemyType.TANK:
+			speed = 5.0
+			health = 8.0
 
 func _physics_process(delta: float) -> void:
 	if network == null or target == null:

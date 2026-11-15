@@ -14,9 +14,12 @@ collision_layer = 2
 collision_mask = 1
 script = ExtResource("1_ae")
 enemy_type = 1
-weakness_rho_below = 20.0
+weakness_family = "Lorenz"
 weakness_multiplier = 2.0
 resistance = 0.5
+weakness_rho_below = 20.0
+weakness_feature = "high_symmetry"
+weakness_feature_threshold = 0.7
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("SphereMesh_ae")
