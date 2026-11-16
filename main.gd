@@ -16,8 +16,9 @@ func _ready() -> void:
 	crafting_ui_scene  = load("res://CraftingUI.tscn")
 
 	# Phase 7: Procedural level generation.
+	var _gs = get_node_or_null("/root/GameState")
 	level_generator = LevelGenerator.new()
-	level_generator.seed = 12345
+	level_generator.seed = _gs.seed if _gs else 12345
 	level_generator.target_depth = 10
 	add_child(level_generator)
 	await level_generator.generate(network)

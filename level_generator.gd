@@ -5,6 +5,7 @@ extends Node
 # ── Configuration ─────────────────────────────────────────────────────────
 @export var seed: int = 12345
 @export var target_depth: int = 10
+@export var debug_dump: bool = false
 @export var rest_interval: int = 4
 @export var junction_prob_base: float = 0.25
 @export var dead_end_prob: float = 0.3
@@ -15,6 +16,7 @@ extends Node
 var network: PipeNetwork = null
 var rng: RandomNumberGenerator = null
 var _graph: Array = []  # Array of SectionNode dicts
+var _macro: MacroGraph = null
 var _node_count: int = 0
 
 # Section types.
@@ -385,6 +387,7 @@ func _generate_v2() -> void:
 		"min_radius": 6.0,
 	}
 	var macro: MacroGraph = MacroGraph.generate(config, rng)
+	_macro = macro
 	var v := macro.validate(config)
 	if not bool(v["ok"]):
 		push_warning("v2 macro validation failed: %s — falling back to v1" % str(v["errors"]))
@@ -573,6 +576,16 @@ func _generate_v2() -> void:
 	for i in range(10):
 		await get_tree().process_frame
 
+	if debug_dump:
+		var summary := _macro.hash_summary() if _macro != null else ""
+		var _gs = get_node_or_null("/root/GameState")
+		if _gs:
+			_gs.last_graph_summary = summary
+		var f := FileAccess.open("user://level_graph_%d.txt" % seed, FileAccess.WRITE)
+		if f:
+			f.store_string(summary)
+			f.close()
+
 	# Seal the start and every dead end / unused mouth.
 	network.cap_open_ends()
 
@@ -679,6 +692,22 @@ func _place_content_v2(node_sections: Array, macro: MacroGraph) -> void:
 		sign.text = "JUNCTION"
 		sign.position = section.global_position + Vector3(0.0, 8.0, 0.0)
 		add_child(sign)
+
+	# Enemy spawner.
+	# Zone boundary signs.
+	var prev_zone := 1
+	for node in macro.nodes:
+		if node.main_index < 0:
+			continue
+		if node.zone != prev_zone:
+			prev_zone = node.zone
+			var zsection: PipeSection = node_sections[node.id]
+			if zsection == null:
+				continue
+			var zsign = load("res://Sign.tscn").instantiate()
+			zsign.text = "ZONE %d" % node.zone
+			zsign.position = zsection.global_position + Vector3(0.0, 8.0, 0.0)
+			add_child(zsign)
 
 	# Enemy spawner.
 	var spawner = EnemySpawner.new()

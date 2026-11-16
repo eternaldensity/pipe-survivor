@@ -37,6 +37,8 @@ func _on_body_entered(body: Node3D) -> void:
 		var v := body as Vehicle
 		if v:
 			v.rest_zone_inside = true
+			# Phase E: heal on entry.
+			v.health = minf(v.max_health, v.health + 30.0)
 
 func _on_body_exited(body: Node3D) -> void:
 	if body is CharacterBody3D:

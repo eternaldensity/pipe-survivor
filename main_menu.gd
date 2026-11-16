@@ -2,6 +2,8 @@
 class_name MainMenu
 extends Control
 
+var _seed_edit: LineEdit = null
+
 func _ready() -> void:
 	# Full-screen dark background.
 	var bg := ColorRect.new()
@@ -38,6 +40,47 @@ func _ready() -> void:
 	subtitle.offset_bottom = 240
 	add_child(subtitle)
 
+	# Seed input.
+	var seed_label := Label.new()
+	seed_label.text = "Seed:"
+	seed_label.position = Vector2(0, 260)
+	seed_label.size = Vector2(80, 30)
+	seed_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	seed_label.offset_left = -200
+	seed_label.offset_top = 260
+	seed_label.offset_right = -120
+	seed_label.offset_bottom = 290
+	add_child(seed_label)
+
+	var _gs = get_node_or_null("/root/GameState")
+	var default_seed := 12345
+	if _gs:
+		default_seed = _gs.seed
+
+	_seed_edit = LineEdit.new()
+	_seed_edit.text = str(default_seed)
+	_seed_edit.position = Vector2(0, 260)
+	_seed_edit.size = Vector2(120, 30)
+	_seed_edit.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_seed_edit.offset_left = -100
+	_seed_edit.offset_top = 260
+	_seed_edit.offset_right = 20
+	_seed_edit.offset_bottom = 290
+	add_child(_seed_edit)
+
+	var random_btn := Button.new()
+	random_btn.text = "Random"
+	random_btn.size = Vector2(80, 30)
+	random_btn.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	random_btn.offset_left = 30
+	random_btn.offset_top = 260
+	random_btn.offset_right = 110
+	random_btn.offset_bottom = 290
+	random_btn.pressed.connect(func():
+		_seed_edit.text = str(randi())
+	)
+	add_child(random_btn)
+
 	# Start button.
 	var start_btn := Button.new()
 	start_btn.text = "Start Game"
@@ -65,6 +108,11 @@ func _ready() -> void:
 	add_child(quit_btn)
 
 func _on_start_pressed() -> void:
+	var _gs = get_node_or_null("/root/GameState")
+	if _seed_edit and _gs:
+		var val := _seed_edit.text.to_int()
+		if val != 0:
+			_gs.seed = val
 	get_tree().change_scene_to_file("res://main.tscn")
 
 func _on_quit_pressed() -> void:
