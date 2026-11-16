@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://connectorpipesec01"]
+
+[ext_resource type="Script" path="res://connector_pipe_section.gd" id="1_cps"]
+
+[node name="ConnectorPipeSection" type="Node3D"]
+script = ExtResource("1_cps")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+
+[node name="Entry" type="Marker3D" parent="."]
+
+[node name="Exit" type="Marker3D" parent="."]
