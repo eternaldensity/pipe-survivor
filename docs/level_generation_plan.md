@@ -450,12 +450,11 @@ reach the boss, no section oscillation deadlocks, and the director keeps pressur
 - [ ] Extend visibility harness; verify seams/caps/winding on connectors.
 - **Acceptance:** loops close exactly; all geometry checks pass on 100 seeds.
 
-### Phase C — Builder v2
-- [ ] Chain solver with endpoint residual and connector fallback.
-- [ ] Build main path, loops, side paths; map macro nodes to `JunctionPipeSection`,
-  `RestZone`, `BossArena`, and a new `RewardChamber`.
-- [ ] Feature flag `generation_version = 2` with v1 fallback.
-- **Acceptance:** playable looped level; existing driving/lighting/visibility harness green.
+### Phase C — Builder v2 (implemented)
+- [x] Chain solving via connectors for all macro edges.
+- [x] Macro nodes realized as chambers/junctions/rest/reward/boss.
+- [x] Ring-center seam alignment.
+- [x] v2 is the default; v1 retained as fallback.
 
 ### Phase D — ThreatDirector
 - [ ] `ThreatDirector` replaces `EnemySpawner` ambient logic (ambush pre-placement kept).
