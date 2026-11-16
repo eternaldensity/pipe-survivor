@@ -45,26 +45,30 @@ func _build_mesh() -> void:
 	if baked_len < 1e-3:
 		return
 	var n := maxi(2, samples)
-	var frames: Array[Transform3D] = []
+	# Sample origins and tangents using Godot's frame (parallel transport).
 	var origins: Array[Vector3] = []
+	var frames_x: Array[Vector3] = []
+	var frames_y: Array[Vector3] = []
 	for i in range(n + 1):
 		var off := baked_len * float(i) / float(n)
 		var tr := _curve.sample_baked_with_rotation(off)
-		frames.append(tr)
 		origins.append(tr.origin)
+		# Godot's frame: basis.z points along -flow; xa/ya are the normal plane.
+		frames_x.append(tr.basis.x)
+		frames_y.append(tr.basis.y)
 
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
 	for i in range(n + 1):
-		var tr: Transform3D = frames[i]
-		var xa: Vector3 = tr.basis.x
-		var ya: Vector3 = tr.basis.y
+		var xa: Vector3 = frames_x[i]
+		var ya: Vector3 = frames_y[i]
+		var origin: Vector3 = origins[i]
 		for j in range(PipeSection.RING_SEGMENTS):
 			var a := TAU * float(j) / float(PipeSection.RING_SEGMENTS)
 			var radial := (xa * cos(a) + ya * sin(a)) * tube_radius
-			verts.append(origins[i] + radial)
+			verts.append(origin + radial)
 			norms.append(-radial.normalized())
 			uvs.append(Vector2(float(i) / float(n), float(j) / float(PipeSection.RING_SEGMENTS)))
 
@@ -72,16 +76,12 @@ func _build_mesh() -> void:
 		for j in range(PipeSection.RING_SEGMENTS):
 			var j2 := (j + 1) % PipeSection.RING_SEGMENTS
 			var a := i * PipeSection.RING_SEGMENTS + j
-			var b := i * PipeSection.RING_SEGMENTS + j2
-			var c := (i + 1) * PipeSection.RING_SEGMENTS + j
-			var d := (i + 1) * PipeSection.RING_SEGMENTS + j2
-			# Godot uses clockwise winding for front faces; this order makes the
-			# inside (inward normals) the visible front face.
+			var b := (i + 1) * PipeSection.RING_SEGMENTS + j
+			var c := (i + 1) * PipeSection.RING_SEGMENTS + j2
+			var d := i * PipeSection.RING_SEGMENTS + j2
 			indices.append_array([a, c, b, a, d, c])
 
-	# Consistency pass: the parallel-transport frame can flip the handedness of
-	# a ring, so re-check every triangle and flip any whose geometric normal
-	# points the same way as its inward normals (interior would be back-faced).
+	# Consistency pass.
 	for t in range(indices.size() / 3):
 		var a := indices[t * 3]
 		var b := indices[t * 3 + 1]
@@ -159,7 +159,7 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	var local_pos := to_local(world_pos)
 	var off := _curve.get_closest_offset(local_pos)
 	var tr := _curve.sample_baked_with_rotation(off)
-	var axis := (global_transform.basis * tr.basis.z).normalized()
+	var axis := (global_transform.basis * -tr.basis.z).normalized()
 	var origin := to_global(tr.origin)
 	return {"axis": axis, "origin": origin, "radius": tube_radius}
 
@@ -173,3 +173,17 @@ func contains_point(world_pos: Vector3) -> bool:
 	if off < -2.0 or off > len + 2.0:
 		return false
 	return local_pos.distance_to(tr.origin) < tube_radius + 2.0
+
+func sample_centreline_points() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	if _curve == null:
+		return out
+	var len := _curve.get_baked_length()
+	if len < 1e-3:
+		return out
+	var n := maxi(4, samples)
+	for i in range(1, n):
+		var off := len * float(i) / float(n)
+		var tr := _curve.sample_baked_with_rotation(off)
+		out.append(to_global(tr.origin))
+	return out

@@ -27,6 +27,5 @@ func get_tube_properties(world_pos: Vector3) -> Dictionary:
 	return {}
 
 
-func contains_point(world_pos: Vector3) -> bool:
-	push_error("contains_point not implemented in " + name)
-	return false
+func sample_centreline_points() -> Array[Vector3]:
+	return []
