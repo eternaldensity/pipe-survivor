@@ -8,7 +8,7 @@ extends Node
 @export var rest_interval: int = 4
 @export var junction_prob_base: float = 0.25
 @export var dead_end_prob: float = 0.3
-@export var generation_version: int = 1
+@export var generation_version: int = 2
 @export var min_radius: float = 6.0
 @export var max_radius: float = 20.0
 
@@ -29,6 +29,10 @@ func generate(net: PipeNetwork) -> void:
 	_graph.clear()
 	_node_count = 0
 	rng.seed = seed
+
+	if generation_version >= 2:
+		await _generate_v2()
+		return
 
 	# Entry: straight pipe matching the vehicle's starting radius.
 	var entry := _add_node(SectionType.STRAIGHT, 1, {
@@ -352,6 +356,321 @@ func _build_network() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
+func _generate_v2() -> void:
+	# Build the macro topology.
+	var config := {
+		"main_anchors": 12,
+		"anchor_spacing_min": 60.0,
+		"anchor_spacing_max": 130.0,
+		"clearance_radius": 40.0,
+		"min_loops": 2,
+		"max_loops": 4,
+		"side_paths": 4,
+		"side_paths_min": 3,
+		"side_paths_max": 6,
+		"max_loop_span": 8,
+		"min_main_nodes": 8,
+		"max_main_nodes": 18,
+		"max_radius": 16.0,
+		"min_radius": 6.0,
+	}
+	var macro: MacroGraph = MacroGraph.generate(config, rng)
+	var v := macro.validate(config)
+	if not bool(v["ok"]):
+		push_warning("v2 macro validation failed: %s — falling back to v1" % str(v["errors"]))
+		generation_version = 1
+		await generate(network)
+		return
+
+	var zone_radius := func(zone: int) -> float:
+		var max_r := 16.0
+		var min_r := 6.0
+		var t := float(zone - 1) / 4.0
+		return lerpf(max_r, min_r, t)
+
+	# 1. Create macro node sections.
+	var node_sections: Array = []
+	node_sections.resize(macro.nodes.size())
+	for node in macro.nodes:
+		var radius: float = zone_radius.call(node.zone)
+		var is_junction := macro.degree(node.id) >= 3
+		var side_count := 0
+		for e in macro.edges:
+			if e.from_node == node.id or e.to_node == node.id:
+				if e.kind != MacroGraph.EdgeKind.MAIN:
+					side_count += 1
+		var packed: PackedScene
+		var props: Dictionary
+		if node.kind == MacroGraph.NodeKind.BOSS:
+			packed = load("res://BossArena.tscn")
+			props = {"entry_radius": radius + 2.0, "exit_radius": radius + 2.0, "length": 120.0}
+		elif node.kind == MacroGraph.NodeKind.ENTRY:
+			packed = load("res://StraightPipeSection.tscn")
+			props = {"entry_radius": radius, "exit_radius": radius, "length": 100.0}
+		elif node.kind == MacroGraph.NodeKind.REST or node.kind == MacroGraph.NodeKind.REWARD:
+			packed = load("res://RestZone.tscn")
+			props = {"entry_radius": radius + 4.0, "exit_radius": radius + 4.0, "length": 60.0}
+		elif is_junction:
+			packed = load("res://JunctionPipeSection.tscn")
+			var has_left := side_count >= 1
+			var has_right := side_count >= 2
+			props = {
+				"tube_radius": radius,
+				"trunk_length": 40.0,
+				"branch_angle": 25.0,
+				"branch_length": 60.0,
+				"decision_offset": 15.0,
+				"blend_length": 0.0,
+				"has_trunk": true,
+				"left_branch": has_left,
+				"right_branch": has_right,
+			}
+		else:
+			packed = load("res://StraightPipeSection.tscn")
+			props = {"entry_radius": radius, "exit_radius": radius, "length": 40.0}
+		var section: PipeSection = packed.instantiate() as PipeSection
+		for key in props:
+			section.set(key, props[key])
+		section.global_transform = Transform3D(Basis.IDENTITY, node.position)
+		network.add_child(section)
+		network.sections.append(section)
+		# Build port list: entry(0), exit(1), then side ports.
+		var ports: Array[Marker3D] = []
+		ports.append(section.entry)
+		ports.append(section.exit)
+		if section is JunctionPipeSection:
+			var j := section as JunctionPipeSection
+			for m in j.exits:
+				if m != null and m != j.exit:
+					ports.append(m)
+		# ensure at least side slots exist as null placeholders handled by size
+		section.exits = ports.duplicate()
+		node_sections[node.id] = section
+
+	# Let junction CSG meshes build before computing ring centers.
+	for i in range(15):
+		await get_tree().process_frame
+
+	# Align junction exit markers to their actual mesh mouth centres, so
+	# attached connectors and the seam harness agree with the geometry.
+	for node in macro.nodes:
+		var section: PipeSection = node_sections[node.id]
+		if not (section is JunctionPipeSection):
+			continue
+		var j := section as JunctionPipeSection
+		for i in range(j.exits.size()):
+			var marker: Marker3D = j.exits[i]
+			var radius := j.get_exit_radius(i)
+			var center := _mesh_ring_center(j, marker, radius)
+			marker.global_position = center
+
+	# 2. Reassign port indices for each macro edge.
+	var side_counter: Dictionary = {}
+	for node in macro.nodes:
+		side_counter[node.id] = 2
+	for e in macro.edges:
+		if e.kind == MacroGraph.EdgeKind.MAIN:
+			e.from_port = 1
+			e.to_port = 0
+		elif e.kind == MacroGraph.EdgeKind.SIDE:
+			e.from_port = side_counter[e.from_node]
+			side_counter[e.from_node] += 1
+			e.to_port = 0
+		else:  # LOOP
+			e.from_port = side_counter[e.from_node]
+			side_counter[e.from_node] += 1
+			if macro.degree(e.to_node) >= 3:
+				e.to_port = side_counter[e.to_node]
+				side_counter[e.to_node] += 1
+			else:
+				e.to_port = 1
+
+	# 3. Create connectors for each macro edge.
+	var connector_packed := load("res://ConnectorPipeSection.tscn")
+	for e in macro.edges:
+		var from_sec: PipeSection = node_sections[e.from_node]
+		var to_sec: PipeSection = node_sections[e.to_node]
+		if from_sec == null or to_sec == null:
+			continue
+		var from_port_idx: int = e.from_port
+		var to_port_idx: int = e.to_port
+		if from_port_idx < 0 or from_port_idx >= from_sec.exits.size():
+			from_port_idx = clampi(from_port_idx, 0, from_sec.exits.size() - 1)
+		if to_port_idx < 0 or to_port_idx >= to_sec.exits.size():
+			to_port_idx = clampi(to_port_idx, 0, to_sec.exits.size() - 1)
+		var from_marker: Marker3D = from_sec.exits[from_port_idx]
+		var to_marker: Marker3D = to_sec.exits[to_port_idx]
+		var radius := from_sec.get_exit_radius(from_port_idx)
+		# Match the actual mesh boundary rings, not just the markers, so seams
+		# close without gaps even when CSG/connector rings are slightly offset.
+		var from_center := _mesh_ring_center(from_sec, from_marker, radius)
+		var to_center := _mesh_ring_center(to_sec, to_marker, radius)
+		var start_transform := Transform3D(from_marker.global_transform.basis, from_center)
+		var end_pos := to_center
+		var end_tangent := to_marker.global_transform.basis.z
+		var end_point_local := start_transform.affine_inverse() * end_pos
+		var end_tangent_local := start_transform.basis.inverse() * end_tangent
+		var props := {
+			"end_point": end_point_local,
+			"end_tangent": end_tangent_local,
+			"tube_radius": radius,
+		}
+		var conn := connector_packed.instantiate() as PipeSection
+		for key in props:
+			conn.set(key, props[key])
+		conn.global_transform = start_transform
+		network.add_child(conn)
+		network.sections.append(conn)
+		conn.attached_from = from_sec
+		conn.attached_exit = from_port_idx
+
+	# 4. Place content.
+	_place_content_v2(node_sections, macro)
+
+	# Let async section _ready calls settle.
+	for i in range(10):
+		await get_tree().process_frame
+
+	# Seal the start and every dead end / unused mouth.
+	network.cap_open_ends()
+
+func _mesh_ring_center(section: PipeSection, marker: Marker3D, radius: float) -> Vector3:
+	# Average the boundary vertices near a marker to find the actual mesh mouth
+	# centre (CSG seams are rarely perfect circles centred on the marker).
+	var mi: MeshInstance3D = section.mesh_instance
+	if mi == null or mi.mesh == null:
+		return marker.global_position
+	var center := marker.global_position
+	var axis := marker.global_transform.basis.z.normalized()
+	var sum := Vector3.ZERO
+	var count := 0
+	var xf := mi.global_transform
+	for surf in range(mi.mesh.get_surface_count()):
+		var arr := mi.mesh.surface_get_arrays(surf)
+		if arr == null:
+			continue
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var raw = arr[Mesh.ARRAY_INDEX]
+		var idx: PackedInt32Array = raw if raw != null else PackedInt32Array()
+		if verts.is_empty():
+			continue
+		# Weld vertices by position.
+		var weld := {}
+		var positions: Array[Vector3] = []
+		var remap := PackedInt32Array()
+		remap.resize(verts.size())
+		for vi in range(verts.size()):
+			var pp: Vector3 = verts[vi]
+			var key := "%d:%d:%d" % [roundi(pp.x * 100.0), roundi(pp.y * 100.0), roundi(pp.z * 100.0)]
+			if weld.has(key):
+				remap[vi] = weld[key]
+			else:
+				remap[vi] = positions.size()
+				weld[key] = positions.size()
+				positions.append(pp)
+		var tri_count := idx.size() / 3 if idx.size() > 0 else verts.size() / 3
+		var counts := {}
+		for t in range(tri_count):
+			var i0: int; var i1: int; var i2: int
+			if idx.size() > 0:
+				i0 = remap[idx[t * 3]]; i1 = remap[idx[t * 3 + 1]]; i2 = remap[idx[t * 3 + 2]]
+			else:
+				i0 = remap[t * 3]; i1 = remap[t * 3 + 1]; i2 = remap[t * 3 + 2]
+			for pair in [[i0, i1], [i1, i2], [i2, i0]]:
+				var lo: int = mini(pair[0], pair[1])
+				var hi: int = maxi(pair[0], pair[1])
+				var key := "%d:%d" % [lo, hi]
+				if counts.has(key):
+					counts[key] += 1
+				else:
+					counts[key] = 1
+		for t in range(tri_count):
+			var i0: int; var i1: int; var i2: int
+			if idx.size() > 0:
+				i0 = remap[idx[t * 3]]; i1 = remap[idx[t * 3 + 1]]; i2 = remap[idx[t * 3 + 2]]
+			else:
+				i0 = remap[t * 3]; i1 = remap[t * 3 + 1]; i2 = remap[t * 3 + 2]
+			for pair in [[i0, i1], [i1, i2], [i2, i0]]:
+				var lo: int = mini(pair[0], pair[1])
+				var hi: int = maxi(pair[0], pair[1])
+				var key := "%d:%d" % [lo, hi]
+				if counts[key] != 1:
+					continue
+				var a: Vector3 = positions[lo]
+				var b: Vector3 = positions[hi]
+				for pp in [a, b]:
+					var wp: Vector3 = xf * pp
+					var rel: Vector3 = wp - center
+					var along := rel.dot(axis)
+					var radial := (rel - axis * along).length()
+					if absf(along) < 1.0 and radial > radius * 0.35 and radial < radius * 1.65:
+						sum += wp
+						count += 1
+	if count < 6:
+		return marker.global_position
+	return sum / float(count)
+
+func _place_content_v2(node_sections: Array, macro: MacroGraph) -> void:
+	# Boss.
+	for node in macro.nodes:
+		if node.kind != MacroGraph.NodeKind.BOSS:
+			continue
+		var section: PipeSection = node_sections[node.id]
+		if section == null:
+			continue
+		var boss = load("res://BossVehicle.tscn").instantiate()
+		boss.network = network
+		boss.target = get_node_or_null("Vehicle")
+		var sec_len: float = section.get("length") if section.get("length") != null else 100.0
+		boss.arena_center = section.global_position
+		add_child(boss)
+		boss.global_position = boss.arena_center
+
+	# Signs at junctions.
+	for node in macro.nodes:
+		if macro.degree(node.id) < 3:
+			continue
+		var section: PipeSection = node_sections[node.id]
+		if section == null:
+			continue
+		var sign = load("res://Sign.tscn").instantiate()
+		sign.text = "JUNCTION"
+		sign.position = section.global_position + Vector3(0.0, 8.0, 0.0)
+		add_child(sign)
+
+	# Enemy spawner.
+	var spawner = EnemySpawner.new()
+	spawner.chaser_scene = load("res://ChaserEnemy.tscn")
+	spawner.ambusher_scene = load("res://AmbusherEnemy.tscn")
+	spawner.tank_scene = load("res://TankEnemy.tscn")
+	spawner.network = network
+	spawner.target = get_node_or_null("Vehicle")
+	spawner.spawn_interval = 4.0
+	spawner.max_enemies = 6
+	add_child(spawner)
+
+	# Game manager.
+	var gm = GameManager.new()
+	add_child(gm)
+
+	# Game HUD.
+	var hud = load("res://GameHUD.tscn").instantiate()
+	add_child(hud)
+
+	# Audio manager.
+	var audio = AudioManager.new()
+	add_child(audio)
+
+	# Pause menu.
+	var pause_menu = load("res://PauseMenu.tscn").instantiate()
+	add_child(pause_menu)
+
+	# Crafting UI.
+	var crafting_ui = load("res://CraftingUI.tscn").instantiate()
+	add_child(crafting_ui)
+	var vehicle = get_node_or_null("Vehicle")
+	if vehicle:
+		crafting_ui.bind_vehicle(vehicle)
 func _scene_for_type(type: SectionType) -> PackedScene:
 	match type:
 		SectionType.STRAIGHT:
