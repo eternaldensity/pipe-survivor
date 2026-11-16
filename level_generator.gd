@@ -8,6 +8,7 @@ extends Node
 @export var rest_interval: int = 4
 @export var junction_prob_base: float = 0.25
 @export var dead_end_prob: float = 0.3
+@export var generation_version: int = 1
 @export var min_radius: float = 6.0
 @export var max_radius: float = 20.0
 
@@ -66,6 +67,9 @@ func generate(net: PipeNetwork) -> void:
 		push_warning("Level validation failed, using fallback")
 		return
 	await _build_network()
+
+	# Seal the start and every dead end / unused junction mouth.
+	network.cap_open_ends()
 
 func _tier_for_depth(depth: int, max_depth: int) -> int:
 	var t := float(depth) / float(max_depth)
@@ -347,8 +351,6 @@ func _build_network() -> void:
 	# Let async section _ready calls (junction CSG) settle.
 	await get_tree().process_frame
 	await get_tree().process_frame
-	# Seal the start and every dead end / unused junction mouth.
-	network.cap_open_ends()
 
 func _scene_for_type(type: SectionType) -> PackedScene:
 	match type:
