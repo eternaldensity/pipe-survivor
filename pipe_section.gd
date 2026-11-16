@@ -10,6 +10,9 @@ extends Node3D
 # junctions populate it with all of their exit markers.
 var exits : Array[Marker3D] = []
 
+# Set by LevelGenerator: position along the main path (0..1), monotonic.
+var main_progress: float = 0.0
+
 # Set by PipeNetwork.add_section when this section is snapped onto a prior exit.
 var attached_from : PipeSection = null
 var attached_exit : int = -1

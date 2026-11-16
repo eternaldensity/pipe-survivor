@@ -101,8 +101,11 @@ func _flatten(delta: float, up: Vector3) -> void:
 	var target_basis := Basis.looking_at(fwd, up)
 	global_transform.basis = global_transform.basis.slerp(target_basis, delta * 14.0)
 
-func take_damage(amount: float) -> void:
-	health -= amount
+func apply_threat_scale(mult: float) -> void:
+	health *= mult
+	max_health *= mult
+	speed *= sqrt(mult)
+	_update_health_bar()
 	_update_health_bar()
 	# Phase transition at 50% health.
 	if _phase == 1 and health <= max_health * 0.5:

@@ -351,6 +351,16 @@ func _build_network() -> void:
 		section_map[node["id"]] = section
 
 	# Second pass: place content (rest zones, signs, enemies, boss).
+	# Annotate main-path progress for the threat director.
+	for node in _graph:
+		var section: PipeSection = section_map.get(node["id"], null)
+		if section == null:
+			continue
+		var depth: int = node["depth"]
+		var p: float = clampf(float(depth) / float(maxi(1, target_depth)), 0.0, 1.0)
+		if node["type"] == SectionType.BOSS_ARENA:
+			p = 1.0
+		section.main_progress = p
 	_place_content(section_map)
 	# Let async section _ready calls (junction CSG) settle.
 	await get_tree().process_frame
@@ -429,6 +439,9 @@ func _generate_v2() -> void:
 			packed = load("res://StraightPipeSection.tscn")
 			props = {"entry_radius": radius, "exit_radius": radius, "length": 40.0}
 		var section: PipeSection = packed.instantiate() as PipeSection
+		if section == null:
+			push_error("v2: failed to instantiate section for node %d" % node.id)
+			continue
 		for key in props:
 			section.set(key, props[key])
 		section.global_transform = Transform3D(Basis.IDENTITY, node.position)
@@ -446,6 +459,33 @@ func _generate_v2() -> void:
 		# ensure at least side slots exist as null placeholders handled by size
 		section.exits = ports.duplicate()
 		node_sections[node.id] = section
+
+	# Annotate main-path progress for the threat director.
+	var main_count := 0
+	for node in macro.nodes:
+		if node.main_index >= 0:
+			main_count += 1
+	for node in macro.nodes:
+		var section: PipeSection = node_sections[node.id]
+		if section == null:
+			continue
+		if node.main_index >= 0 and main_count > 1:
+			section.main_progress = clampf(float(node.main_index) / float(main_count - 1), 0.0, 1.0)
+		else:
+			# side/reward: inherit nearest main node's progress
+			var best := 0.0
+			var best_d := INF
+			for m in macro.nodes:
+				if m.main_index < 0:
+					continue
+				var d := m.position.distance_to(node.position)
+				if d < best_d:
+					best_d = d
+					if main_count > 1:
+						best = clampf(float(m.main_index) / float(main_count - 1), 0.0, 1.0)
+			section.main_progress = best
+		if node.kind == MacroGraph.NodeKind.BOSS:
+			section.main_progress = 1.0
 
 	# Let junction CSG meshes build before computing ring centers.
 	for i in range(15):
@@ -516,6 +556,8 @@ func _generate_v2() -> void:
 			"tube_radius": radius,
 		}
 		var conn := connector_packed.instantiate() as PipeSection
+		if conn == null:
+			continue
 		for key in props:
 			conn.set(key, props[key])
 		conn.global_transform = start_transform
@@ -709,16 +751,20 @@ func _place_content(section_map: Dictionary) -> void:
 		add_child(boss)
 		boss.global_position = boss.arena_center
 
-	# Place enemy spawner.
-	var spawner = EnemySpawner.new()
-	spawner.chaser_scene = load("res://ChaserEnemy.tscn")
-	spawner.ambusher_scene = load("res://AmbusherEnemy.tscn")
-	spawner.tank_scene = load("res://TankEnemy.tscn")
-	spawner.network = network
-	spawner.target = get_node_or_null("Vehicle")
-	spawner.spawn_interval = 4.0
-	spawner.max_enemies = 6
-	add_child(spawner)
+	# Place threat director.
+	var td = ThreatDirector.new()
+	td.chaser_scene = load("res://ChaserEnemy.tscn")
+	td.ambusher_scene = load("res://AmbusherEnemy.tscn")
+	td.tank_scene = load("res://TankEnemy.tscn")
+	td.network = network
+	td.target = get_node_or_null("Vehicle")
+	td.base_spawn_interval = 3.0
+	td.min_spawn_interval = 0.6
+	td.base_max_alive = 8
+	td.max_alive_cap = 50
+	td.elite_start_progress = 0.45
+	td.champion_start_progress = 0.8
+	add_child(td)
 
 	# Place game manager.
 	var gm = GameManager.new()

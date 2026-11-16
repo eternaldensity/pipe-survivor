@@ -63,7 +63,7 @@ func _auto_steer(v: Vehicle) -> void:
 func _test_driving() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	for i in range(30): await process_frame
+	for i in range(60): await process_frame
 	Input.action_press("ui_up")
 	var nan_count := 0
 	var min_r := 1e9
@@ -77,10 +77,16 @@ func _test_driving() -> void:
 		var v = main.get_node("Vehicle")
 		var net = main.get_node("PipeNetwork")
 		_auto_steer(v)
-
+		for c in [v.global_position.x, v.global_position.y, v.global_position.z]:
+			if is_nan(c) or is_inf(c):
+				_fail("driving: NaN/INF position at frame %d" % i)
+				break
 		var sec = net.get_section_at(v.global_position)
 		if sec == null:
-			_fail("driving: null section at frame %d" % i)
+			var types := ""
+			for s in net.sections:
+				types += s.get_class() + " "
+			_fail("driving: null section at frame %d (net.sections=%d types=%s)" % [i, net.sections.size(), types])
 			break
 		# Stop once the vehicle has driven past the end of the authored network.
 		if not sec.contains_point(v.global_position):
@@ -167,7 +173,7 @@ func _test_steering() -> void:
 func _test_branch() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	for i in range(30): await process_frame
+	for i in range(60): await process_frame
 	# v2 uses connectors for loops/sides; the v1 branch-traversal case is
 	# covered by the visibility harness. Skip here.
 	main.queue_free()
@@ -178,7 +184,7 @@ func _test_branch() -> void:
 func _test_properties() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	for i in range(30): await process_frame
+	for i in range(60): await process_frame
 	var net = main.get_node("PipeNetwork")
 	for s in net.sections:
 		if s is StraightPipeSection:
@@ -225,7 +231,7 @@ func _test_properties() -> void:
 func _test_seams() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
-	for i in range(30): await process_frame
+	for i in range(60): await process_frame
 	var net = main.get_node("PipeNetwork")
 	var count := 0
 	for s in net.sections:

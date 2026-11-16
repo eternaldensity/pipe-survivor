@@ -108,22 +108,28 @@ func _build_cap_mesh(radius: float, facing: float) -> ArrayMesh:
 
 func get_section_at(world_pos: Vector3) -> PipeSection:
 	if sections.is_empty():
+		print("GSA: sections empty")
 		return null
 	# Hand off out of a junction when the vehicle is near one of its exit
 	# markers AND the downstream section actually contains the point.
 	if current_section != null and current_section is JunctionPipeSection:
 		var j := current_section as JunctionPipeSection
 		for s in sections:
-			if s == current_section or s.attached_from != j:
+			if s == current_section or not (s is PipeSection):
+				continue
+			var ps := s as PipeSection
+			if ps.attached_from != j:
 				continue
 			if s.entry.global_position.distance_to(world_pos) < 15.0 and s.contains_point(world_pos):
 				current_section = s
 				return s
 	# Stick with current section until we're clearly outside it
-	if current_section != null and current_section.contains_point(world_pos):
+	if current_section != null and current_section is PipeSection and current_section.contains_point(world_pos):
 		return current_section
 	# Then look for a new one
 	for s in sections:
+		if not (s is PipeSection):
+			continue
 		if s.contains_point(world_pos):
 			current_section = s
 			return s
@@ -131,12 +137,17 @@ func get_section_at(world_pos: Vector3) -> PipeSection:
 	var best      : PipeSection = null
 	var best_dist := INF
 	for s in sections:
-		var d := world_pos.distance_squared_to(s.entry.global_position)
-		for e in s.exits:
+		if not (s is PipeSection):
+			continue
+		var ps := s as PipeSection
+		var d := world_pos.distance_squared_to(ps.entry.global_position)
+		for e in ps.exits:
 			d = minf(d, world_pos.distance_squared_to(e.global_position))
-		d = minf(d, world_pos.distance_squared_to(s.exit.global_position))
+		d = minf(d, world_pos.distance_squared_to(ps.exit.global_position))
 		if d < best_dist:
 			best_dist = d
-			best      = s
+			best      = ps
+	if best == null:
+		print("get_section_at: no best, sections=", sections.size(), " first=", (sections[0].get_class() if sections.size() > 0 else "empty"))
 	current_section = best
 	return best
