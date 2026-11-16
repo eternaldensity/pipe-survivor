@@ -211,7 +211,9 @@ available in this environment.
 - **ConnectorPipeSection**: spline tube between two ports; passes visibility, seam,
   winding and collision checks.
 - **MacroGraph**: 100 seeds, 501 topology checks, < 1 ms generation.
-- **Content**: boss, spawner, HUD, audio, pause, crafting UI placed from macro kinds.
+- **ThreatDirector**: replaces ambient spawner; density ramp (0–45%), quality ramp
+  (45–80%), champion/elite pressure (80–100%); boss scaling; ambushes at junctions;
+  wave events; breather after rest zones.
 - **Testing**: `tests/run.sh` → 392 checks; `tests/run_lighting.sh` → 79 checks;
   `tests/run_visibility.sh` → 357 checks, 8432 rays; `tests/run_generation.sh` →
   501 checks. All pass on generated v2 levels.
