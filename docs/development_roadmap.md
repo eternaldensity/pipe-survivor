@@ -224,6 +224,11 @@ available in this environment.
   a meandering main path with 2–4 loops and 3–6 side paths, exact loop closure via
   spline `ConnectorSection`s, and a `ThreatDirector` that ramps enemy density first,
   then enemy quality (elites/champions) toward a scaled boss. Not implemented yet.
+- **Phase A (implemented)**: `macro_graph.gd` + `tests/generation_harness.gd` — seeded
+  macro topology (meandering route, 2–4 loops, 3–6 side paths), validation,
+  determinism, 100 seeds in < 1 ms, 501 checks green.
+- **Phase B (implemented)**: `ConnectorPipeSection` spline tube with exact seam
+  closure, mesh, collision, inward normals; passes visibility/winding/seam checks.
 
 Deliverables:
 1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
@@ -248,6 +253,8 @@ Deliverables:
   all unused pipe ends are capped).
   Note: Godot treats **clockwise** winding as the front face, so interior-facing
   triangles need their cross product pointing *away* from the inward normal.
+- Keep `tests/run_generation.sh` green on every commit (100 seeds: topology,
+  loops, side paths, connectivity, determinism).
 - Optional visual check: `xvfb-run -a godot --path . --script tests/render_probe.gd`
   renders screenshots from inside a straight, bend, junction, rest zone and arena,
   plus junction seams and a sealed dead end, into `/tmp/opencode/`.
