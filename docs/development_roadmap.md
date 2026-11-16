@@ -203,32 +203,18 @@ caching is implemented. Procedural level generation (seeded, validated, with dif
 progression and junctions) replaces hand-authored levels. Export templates are not
 available in this environment.
 
-### Level Generation (v1 implemented, v2 planned)
-- **LevelGenerator**: seeded RNG, graph-based generation, validation, network building.
-- **SectionGraph**: nodes with type, params, exits, parent, depth.
-- **Difficulty tiers**: radius narrows, bends sharpen, junctions appear as depth increases.
-- **Junctions**: main path always follows the trunk; side branches are generated with
-  their own sub-chains (2-4 sections) ending in dead ends.
-- **Content placement**: rest zones, signs, enemies, boss, spawner.
-- **Validation**: reachability, radius continuity, boss exists, min depth.
-- **Continuity**: each section's entry radius matches its parent's exit radius exactly;
-  bends use a constant radius equal to that seam radius. Junction branch tubes are
-  built along the exit-marker axis with the cap centre on the marker, so seams meet
-  without lateral gaps or tilted planes.
-- **Sealed ends**: every mouth with no attached section (level start, dead ends,
-  unused junction exits, arena far end) is closed by an `EndCap` mesh + collision.
-- **Testing**: `tests/run.sh` → 917 checks; `tests/run_lighting.sh` → 173 checks;
-  `tests/run_visibility.sh` → 323 checks, 2976 rays (mesh presence, winding,
-  enclosure, seam alignment/gap/radius, capped ends). All pass on generated levels.
-- **Next (v2)**: `docs/level_generation_plan.md` defines the run-based redesign:
-  a meandering main path with 2–4 loops and 3–6 side paths, exact loop closure via
-  spline `ConnectorSection`s, and a `ThreatDirector` that ramps enemy density first,
-  then enemy quality (elites/champions) toward a scaled boss. Not implemented yet.
-- **Phase A (implemented)**: `macro_graph.gd` + `tests/generation_harness.gd` — seeded
-  macro topology (meandering route, 2–4 loops, 3–6 side paths), validation,
-  determinism, 100 seeds in < 1 ms, 501 checks green.
-- **Phase B (implemented)**: `ConnectorPipeSection` spline tube with exact seam
-  closure, mesh, collision, inward normals; passes visibility/winding/seam checks.
+### Level Generation (v1 + v2 implemented)
+- **v2** (`generation_version = 2`, default): macro topology (meandering main path,
+  2–4 loops, 3–6 side paths) realized with `ConnectorPipeSection`s for exact loop
+  closure; junctions and chambers placed from the macro graph; caps on all open ends.
+- **v1** (`generation_version = 1`): tree-based; kept as fallback.
+- **ConnectorPipeSection**: spline tube between two ports; passes visibility, seam,
+  winding and collision checks.
+- **MacroGraph**: 100 seeds, 501 topology checks, < 1 ms generation.
+- **Content**: boss, spawner, HUD, audio, pause, crafting UI placed from macro kinds.
+- **Testing**: `tests/run.sh` → 392 checks; `tests/run_lighting.sh` → 79 checks;
+  `tests/run_visibility.sh` → 357 checks, 8432 rays; `tests/run_generation.sh` →
+  501 checks. All pass on generated v2 levels.
 
 Deliverables:
 1. **[Partial]** One tube-network "floor": handful of spells, enemy types, one boss.
