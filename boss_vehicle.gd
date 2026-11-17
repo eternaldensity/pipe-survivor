@@ -28,7 +28,10 @@ var _phase: int = 1  # 1 = normal, 2 = enraged (health < 50%)
 # Health bar.
 var _health_bar: Label3D = null
 
+var _projectile_scene: PackedScene = null
+
 func _ready() -> void:
+	_projectile_scene = load("res://BossProjectile.tscn")
 	_attractor_pos = Vector3(0.1, 0.1, 0.1)
 	# Health bar above boss.
 	_health_bar = Label3D.new()
@@ -43,10 +46,14 @@ func _update_health_bar() -> void:
 	if _health_bar:
 		_health_bar.text = "BOSS %.0f/%.0f" % [health, max_health]
 
+var _current_section: PipeSection = null
+
 func _physics_process(delta: float) -> void:
 	if network == null:
 		return
-	var section := network.get_section_at(global_position)
+	if _current_section == null or not is_instance_valid(_current_section) or not _current_section.contains_point(global_position):
+		_current_section = network.get_section_at(global_position)
+	var section := _current_section
 	if section == null:
 		return
 	var props := section.get_tube_properties(global_position)
@@ -106,7 +113,6 @@ func apply_threat_scale(mult: float) -> void:
 	max_health *= mult
 	speed *= sqrt(mult)
 	_update_health_bar()
-	_update_health_bar()
 	# Phase transition at 50% health.
 	if _phase == 1 and health <= max_health * 0.5:
 		_phase = 2
@@ -159,7 +165,9 @@ func _fire_charge() -> void:
 	_spawn_projectile(target.global_position)
 
 func _spawn_projectile(aim_pos: Vector3, aim_dir: Vector3 = Vector3.ZERO) -> void:
-	var proj = load("res://BossProjectile.tscn").instantiate() as BossProjectile
+	if _projectile_scene == null:
+		_projectile_scene = load("res://BossProjectile.tscn")
+	var proj = _projectile_scene.instantiate() as BossProjectile
 	if proj == null:
 		return
 	proj.network = network

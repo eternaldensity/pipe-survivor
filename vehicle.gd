@@ -29,6 +29,9 @@ var _attractor_preview : AttractorPreview = null
 
 var selected_preset_index := 0
 var _presets: Array[PresetSigil] = []
+var _spell_zone_scene: PackedScene = null
+var _audio_manager: AudioManager = null
+var _audio_searched: bool = false
 # Live spell parameters (updated by crafting UI).
 var spell_sigma: float = 10.0
 var spell_rho: float = 28.0
@@ -140,7 +143,11 @@ func _physics_process(delta: float) -> void:
 		selected_preset_index = 2
 	if Input.is_action_just_pressed("ui_accept") and _spell_cooldown <= 0.0:
 		_spell_cooldown = SPELL_COOLDOWN
-		var zone := SpellZone.new()
+		if _spell_zone_scene == null:
+			_spell_zone_scene = load("res://SpellZone.tscn")
+		var zone := _spell_zone_scene.instantiate() as SpellZone
+		if zone == null:
+			return
 		# Configure attractor from live spell params (updated by crafting UI).
 		zone.attractor.sigma = spell_sigma
 		zone.attractor.rho = spell_rho
@@ -257,12 +264,25 @@ func _physics_process(delta: float) -> void:
 			global_position = clamped
 
 func _find_audio_manager() -> AudioManager:
-	var tree := get_tree()
-	if tree == null or tree.current_scene == null:
+	if _audio_manager != null and is_instance_valid(_audio_manager):
+		return _audio_manager
+	if _audio_searched:
 		return null
-	for child in tree.current_scene.get_children():
+	_audio_searched = true
+	var tree := get_tree()
+	if tree == null:
+		return null
+	# Search autoloads / root children first.
+	for child in tree.root.get_children():
 		if child is AudioManager:
-			return child as AudioManager
+			_audio_manager = child as AudioManager
+			return _audio_manager
+	# Fall back to current scene children.
+	if tree.current_scene:
+		for child in tree.current_scene.get_children():
+			if child is AudioManager:
+				_audio_manager = child as AudioManager
+				return _audio_manager
 	return null
 
 func _flatten_to_surface(up: Vector3, delta: float) -> void:

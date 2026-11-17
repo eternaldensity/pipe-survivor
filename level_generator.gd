@@ -441,6 +441,9 @@ func _generate_v2() -> void:
 		else:
 			packed = load("res://StraightPipeSection.tscn")
 			props = {"entry_radius": radius, "exit_radius": radius, "length": 40.0}
+		if packed == null:
+			push_error("v2: failed to load scene for node %d" % node.id)
+			continue
 		var section: PipeSection = packed.instantiate() as PipeSection
 		if section == null:
 			push_error("v2: failed to instantiate section for node %d" % node.id)
@@ -558,6 +561,8 @@ func _generate_v2() -> void:
 			"end_tangent": end_tangent_local,
 			"tube_radius": radius,
 		}
+		if connector_packed == null:
+			continue
 		var conn := connector_packed.instantiate() as PipeSection
 		if conn == null:
 			continue
@@ -599,68 +604,15 @@ func _mesh_ring_center(section: PipeSection, marker: Marker3D, radius: float) ->
 	var axis := marker.global_transform.basis.z.normalized()
 	var sum := Vector3.ZERO
 	var count := 0
-	var xf := mi.global_transform
-	for surf in range(mi.mesh.get_surface_count()):
-		var arr := mi.mesh.surface_get_arrays(surf)
-		if arr == null:
-			continue
-		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-		var raw = arr[Mesh.ARRAY_INDEX]
-		var idx: PackedInt32Array = raw if raw != null else PackedInt32Array()
-		if verts.is_empty():
-			continue
-		# Weld vertices by position.
-		var weld := {}
-		var positions: Array[Vector3] = []
-		var remap := PackedInt32Array()
-		remap.resize(verts.size())
-		for vi in range(verts.size()):
-			var pp: Vector3 = verts[vi]
-			var key := "%d:%d:%d" % [roundi(pp.x * 100.0), roundi(pp.y * 100.0), roundi(pp.z * 100.0)]
-			if weld.has(key):
-				remap[vi] = weld[key]
-			else:
-				remap[vi] = positions.size()
-				weld[key] = positions.size()
-				positions.append(pp)
-		var tri_count := idx.size() / 3 if idx.size() > 0 else verts.size() / 3
-		var counts := {}
-		for t in range(tri_count):
-			var i0: int; var i1: int; var i2: int
-			if idx.size() > 0:
-				i0 = remap[idx[t * 3]]; i1 = remap[idx[t * 3 + 1]]; i2 = remap[idx[t * 3 + 2]]
-			else:
-				i0 = remap[t * 3]; i1 = remap[t * 3 + 1]; i2 = remap[t * 3 + 2]
-			for pair in [[i0, i1], [i1, i2], [i2, i0]]:
-				var lo: int = mini(pair[0], pair[1])
-				var hi: int = maxi(pair[0], pair[1])
-				var key := "%d:%d" % [lo, hi]
-				if counts.has(key):
-					counts[key] += 1
-				else:
-					counts[key] = 1
-		for t in range(tri_count):
-			var i0: int; var i1: int; var i2: int
-			if idx.size() > 0:
-				i0 = remap[idx[t * 3]]; i1 = remap[idx[t * 3 + 1]]; i2 = remap[idx[t * 3 + 2]]
-			else:
-				i0 = remap[t * 3]; i1 = remap[t * 3 + 1]; i2 = remap[t * 3 + 2]
-			for pair in [[i0, i1], [i1, i2], [i2, i0]]:
-				var lo: int = mini(pair[0], pair[1])
-				var hi: int = maxi(pair[0], pair[1])
-				var key := "%d:%d" % [lo, hi]
-				if counts[key] != 1:
-					continue
-				var a: Vector3 = positions[lo]
-				var b: Vector3 = positions[hi]
-				for pp in [a, b]:
-					var wp: Vector3 = xf * pp
-					var rel: Vector3 = wp - center
-					var along := rel.dot(axis)
-					var radial := (rel - axis * along).length()
-					if absf(along) < 1.0 and radial > radius * 0.35 and radial < radius * 1.65:
-						sum += wp
-						count += 1
+	var edges := PipeSection.welded_boundary_edges(mi)
+	for e in edges:
+		for p in e:
+			var rel: Vector3 = p - center
+			var along := rel.dot(axis)
+			var radial := (rel - axis * along).length()
+			if absf(along) < 1.0 and radial > radius * 0.35 and radial < radius * 1.65:
+				sum += p
+				count += 1
 	if count < 6:
 		return marker.global_position
 	return sum / float(count)
@@ -673,7 +625,12 @@ func _place_content_v2(node_sections: Array, macro: MacroGraph) -> void:
 		var section: PipeSection = node_sections[node.id]
 		if section == null:
 			continue
-		var boss = load("res://BossVehicle.tscn").instantiate()
+		var boss_scene = load("res://BossVehicle.tscn")
+		if boss_scene == null:
+			continue
+		var boss = boss_scene.instantiate()
+		if boss == null:
+			continue
 		boss.network = network
 		boss.target = get_node_or_null("Vehicle")
 		var sec_len: float = section.get("length") if section.get("length") != null else 100.0
@@ -688,7 +645,12 @@ func _place_content_v2(node_sections: Array, macro: MacroGraph) -> void:
 		var section: PipeSection = node_sections[node.id]
 		if section == null:
 			continue
-		var sign = load("res://Sign.tscn").instantiate()
+		var sign_scene = load("res://Sign.tscn")
+		if sign_scene == null:
+			continue
+		var sign = sign_scene.instantiate()
+		if sign == null:
+			continue
 		sign.text = "JUNCTION"
 		sign.position = section.global_position + Vector3(0.0, 8.0, 0.0)
 		add_child(sign)
@@ -704,29 +666,41 @@ func _place_content_v2(node_sections: Array, macro: MacroGraph) -> void:
 			var zsection: PipeSection = node_sections[node.id]
 			if zsection == null:
 				continue
-			var zsign = load("res://Sign.tscn").instantiate()
+			var zsign_scene = load("res://Sign.tscn")
+			if zsign_scene == null:
+				continue
+			var zsign = zsign_scene.instantiate()
+			if zsign == null:
+				continue
 			zsign.text = "ZONE %d" % node.zone
 			zsign.position = zsection.global_position + Vector3(0.0, 8.0, 0.0)
 			add_child(zsign)
 
-	# Enemy spawner.
-	var spawner = EnemySpawner.new()
-	spawner.chaser_scene = load("res://ChaserEnemy.tscn")
-	spawner.ambusher_scene = load("res://AmbusherEnemy.tscn")
-	spawner.tank_scene = load("res://TankEnemy.tscn")
-	spawner.network = network
-	spawner.target = get_node_or_null("Vehicle")
-	spawner.spawn_interval = 4.0
-	spawner.max_enemies = 6
-	add_child(spawner)
+	# Threat director.
+	var td = ThreatDirector.new()
+	td.chaser_scene = load("res://ChaserEnemy.tscn")
+	td.ambusher_scene = load("res://AmbusherEnemy.tscn")
+	td.tank_scene = load("res://TankEnemy.tscn")
+	td.network = network
+	td.target = get_node_or_null("Vehicle")
+	td.base_spawn_interval = 3.0
+	td.min_spawn_interval = 0.6
+	td.base_max_alive = 8
+	td.max_alive_cap = 50
+	td.elite_start_progress = 0.45
+	td.champion_start_progress = 0.8
+	add_child(td)
 
 	# Game manager.
 	var gm = GameManager.new()
 	add_child(gm)
 
 	# Game HUD.
-	var hud = load("res://GameHUD.tscn").instantiate()
-	add_child(hud)
+	var hud_scene = load("res://GameHUD.tscn")
+	if hud_scene:
+		var hud = hud_scene.instantiate()
+		if hud:
+			add_child(hud)
 
 	# Audio manager.
 	var audio = AudioManager.new()
@@ -737,11 +711,14 @@ func _place_content_v2(node_sections: Array, macro: MacroGraph) -> void:
 	add_child(pause_menu)
 
 	# Crafting UI.
-	var crafting_ui = load("res://CraftingUI.tscn").instantiate()
-	add_child(crafting_ui)
-	var vehicle = get_node_or_null("Vehicle")
-	if vehicle:
-		crafting_ui.bind_vehicle(vehicle)
+	var crafting_scene = load("res://CraftingUI.tscn")
+	if crafting_scene:
+		var crafting_ui = crafting_scene.instantiate()
+		if crafting_ui:
+			add_child(crafting_ui)
+			var vehicle = get_node_or_null("Vehicle")
+			if vehicle:
+				crafting_ui.bind_vehicle(vehicle)
 func _scene_for_type(type: SectionType) -> PackedScene:
 	match type:
 		SectionType.STRAIGHT:
@@ -762,23 +739,29 @@ func _place_content(section_map: Dictionary) -> void:
 		if node["type"] != SectionType.JUNCTION:
 			continue
 		var section: PipeSection = section_map[node["id"]]
-		var sign = load("res://Sign.tscn").instantiate()
-		sign.text = "JUNCTION"
-		sign.position = section.entry.global_position - section.global_transform.basis.z * 15.0 + Vector3(0.0, 8.0, 0.0)
-		add_child(sign)
+		var sign_scene = load("res://Sign.tscn")
+		if sign_scene:
+			var sign = sign_scene.instantiate()
+			if sign:
+				sign.text = "JUNCTION"
+				sign.position = section.entry.global_position - section.global_transform.basis.z * 15.0 + Vector3(0.0, 8.0, 0.0)
+				add_child(sign)
 
 	# Place boss.
 	for node in _graph:
 		if node["type"] != SectionType.BOSS_ARENA:
 			continue
 		var section: PipeSection = section_map[node["id"]]
-		var boss = load("res://BossVehicle.tscn").instantiate()
-		boss.network = network
-		boss.target = get_node_or_null("Vehicle")
-		var sec_len: float = section.get("length") if section.get("length") != null else 100.0
-		boss.arena_center = section.entry.global_position + section.global_transform.basis.z * (sec_len * 0.5)
-		add_child(boss)
-		boss.global_position = boss.arena_center
+		var boss_scene = load("res://BossVehicle.tscn")
+		if boss_scene:
+			var boss = boss_scene.instantiate()
+			if boss:
+				boss.network = network
+				boss.target = get_node_or_null("Vehicle")
+				var sec_len: float = section.get("length") if section.get("length") != null else 100.0
+				boss.arena_center = section.entry.global_position + section.global_transform.basis.z * (sec_len * 0.5)
+				add_child(boss)
+				boss.global_position = boss.arena_center
 
 	# Place threat director.
 	var td = ThreatDirector.new()

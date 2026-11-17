@@ -150,7 +150,7 @@ func _all_children(node: Node) -> Array[Node]:
 	return out
 
 func _sample_centreline(sec: PipeSection) -> Array:
-	var pts := sec.sample_centreline_points()
+	var pts: Array[Vector3] = sec.sample_centreline_points()
 	if not pts.is_empty():
 		return pts
 	if sec is JunctionPipeSection:
@@ -352,68 +352,6 @@ func _cast_end_probe(space: PhysicsDirectSpaceState3D, sec: PipeSection, marker:
 
 ## ------------------------------------------------------- mesh utilities ---
 
-## Returns the world-space boundary edges of every surface in a mesh.
-## Vertices are spatially welded because junction meshes are emitted with
-## per-triangle vertex copies.
-func _mesh_boundary_edges(mi: MeshInstance3D) -> Array:
-	var edges: Array = []
-	var xf := mi.global_transform
-	for surf in range(mi.mesh.get_surface_count()):
-		var arr := mi.mesh.surface_get_arrays(surf)
-		if arr == null:
-			continue
-		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-		var raw_idx = arr[Mesh.ARRAY_INDEX]
-		var idx: PackedInt32Array = raw_idx if raw_idx != null else PackedInt32Array()
-		if verts.is_empty():
-			continue
-		# Weld vertices by position (1/100 unit).
-		var weld := {}
-		var positions: Array[Vector3] = []
-		var remap := PackedInt32Array()
-		remap.resize(verts.size())
-		for vi in range(verts.size()):
-			var p: Vector3 = verts[vi]
-			var key := "%d:%d:%d" % [roundi(p.x * 100.0), roundi(p.y * 100.0), roundi(p.z * 100.0)]
-			if weld.has(key):
-				remap[vi] = weld[key]
-			else:
-				remap[vi] = positions.size()
-				weld[key] = positions.size()
-				positions.append(p)
-
-		var tri_count := idx.size() / 3 if idx.size() > 0 else verts.size() / 3
-		var counts := {}
-		for t in range(tri_count):
-			var i0: int
-			var i1: int
-			var i2: int
-			if idx.size() > 0:
-				i0 = remap[idx[t * 3]]
-				i1 = remap[idx[t * 3 + 1]]
-				i2 = remap[idx[t * 3 + 2]]
-			else:
-				i0 = remap[t * 3]
-				i1 = remap[t * 3 + 1]
-				i2 = remap[t * 3 + 2]
-			for pair in [[i0, i1], [i1, i2], [i2, i0]]:
-				var lo: int = mini(pair[0], pair[1])
-				var hi: int = maxi(pair[0], pair[1])
-				var ekey := "%d:%d" % [lo, hi]
-				if counts.has(ekey):
-					counts[ekey] += 1
-				else:
-					counts[ekey] = 1
-
-		for ekey in counts:
-			if counts[ekey] != 1:
-				continue
-			var parts: PackedStringArray = (ekey as String).split(":")
-			var a: Vector3 = positions[int(parts[0])]
-			var b: Vector3 = positions[int(parts[1])]
-			edges.append([xf * a, xf * b])
-	return edges
-
 ## Boundary vertices that sit on the mouth ring around a marker.
 func _ring_near(sec: PipeSection, marker: Marker3D, radius: float) -> PackedVector3Array:
 	var out := PackedVector3Array()
@@ -425,7 +363,7 @@ func _ring_near(sec: PipeSection, marker: Marker3D, radius: float) -> PackedVect
 		var mi := child as MeshInstance3D
 		if mi.mesh == null or mi.mesh.get_surface_count() == 0:
 			continue
-		for e in _mesh_boundary_edges(mi):
+		for e in PipeSection.welded_boundary_edges(mi):
 			for p in e:
 				var rel: Vector3 = p - center
 				var along := rel.dot(axis)

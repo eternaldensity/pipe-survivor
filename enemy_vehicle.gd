@@ -77,10 +77,14 @@ func _ready() -> void:
 	label.text = wtext
 	add_child(label)
 
+var _current_section: PipeSection = null
+
 func _physics_process(delta: float) -> void:
 	if network == null or target == null:
 		return
-	var section := network.get_section_at(global_position)
+	if _current_section == null or not is_instance_valid(_current_section) or not _current_section.contains_point(global_position):
+		_current_section = network.get_section_at(global_position)
+	var section := _current_section
 	if section == null:
 		return
 	var props := section.get_tube_properties(global_position)

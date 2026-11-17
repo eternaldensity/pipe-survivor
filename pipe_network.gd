@@ -108,7 +108,6 @@ func _build_cap_mesh(radius: float, facing: float) -> ArrayMesh:
 
 func get_section_at(world_pos: Vector3) -> PipeSection:
 	if sections.is_empty():
-		print("GSA: sections empty")
 		return null
 	# Hand off out of a junction when the vehicle is near one of its exit
 	# markers AND the downstream section actually contains the point.
@@ -148,6 +147,5 @@ func get_section_at(world_pos: Vector3) -> PipeSection:
 			best_dist = d
 			best      = ps
 	if best == null:
-		print("get_section_at: no best, sections=", sections.size(), " first=", (sections[0].get_class() if sections.size() > 0 else "empty"))
-	current_section = best
-	return best
+		current_section = best
+		return best
