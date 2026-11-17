@@ -32,6 +32,7 @@ var _projectile_scene: PackedScene = null
 
 func _ready() -> void:
 	_projectile_scene = load("res://BossProjectile.tscn")
+	_build_mesh()
 	_attractor_pos = Vector3(0.1, 0.1, 0.1)
 	# Health bar above boss.
 	_health_bar = Label3D.new()
@@ -88,6 +89,47 @@ func _physics_process(delta: float) -> void:
 		_attack_timer = 0.0
 		_attack_pattern = (_attack_pattern + 1) % 3
 		_execute_attack()
+
+func _build_mesh() -> void:
+	var mi := get_node_or_null("MeshInstance3D") as MeshInstance3D
+	if mi:
+		mi.visible = false
+	# Core sphere.
+	_add_part("Core", SphereMesh.new(), Vector3(2.0, 2.0, 2.0), Vector3.ZERO, Color(0.8, 0.15, 0.15), true)
+	# Spikes.
+	for i in range(8):
+		var a := TAU * float(i) / 8.0
+		var spike := MeshInstance3D.new()
+		spike.name = "Spike%d" % i
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.0
+		cyl.bottom_radius = 0.6
+		cyl.height = 2.5
+		spike.mesh = cyl
+		spike.position = Vector3(cos(a) * 1.5, sin(a) * 1.5, 0.0)
+		spike.rotation = Vector3(0, 0, a + PI * 0.5)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(1.0, 0.3, 0.2)
+		mat.emission_enabled = true
+		mat.emission = Color(1.0, 0.2, 0.1)
+		mat.emission_energy_multiplier = 2.0
+		spike.material_override = mat
+		add_child(spike)
+
+func _add_part(name: String, mesh: Mesh, size: Vector3, pos: Vector3, color: Color, metallic: bool) -> void:
+	var mi := MeshInstance3D.new()
+	mi.name = name
+	if mesh is SphereMesh:
+		(mesh as SphereMesh).radius = size.x
+		(mesh as SphereMesh).height = size.x * 2.0
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	if metallic:
+		mat.metallic = 0.6
+		mat.roughness = 0.4
+	mi.material_override = mat
+	mi.position = pos
+	add_child(mi)
 
 func _outward_from(props: Dictionary) -> Vector3:
 	var axis: Vector3 = props["axis"]

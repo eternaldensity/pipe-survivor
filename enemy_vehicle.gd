@@ -81,6 +81,8 @@ func _ready() -> void:
 			weakness_feature = "high_symmetry"
 			weakness_feature_threshold = 0.6
 
+	_build_mesh()
+
 	# Weakness indicator label.
 	var label := Label3D.new()
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -167,6 +169,65 @@ func _physics_process(delta: float) -> void:
 		# Ranged enemies deal damage at a distance.
 		if target.has_method("take_damage"):
 			target.take_damage(4.0 * delta)
+
+func _build_mesh() -> void:
+	# Hide the default box mesh.
+	var mi := get_node_or_null("MeshInstance3D") as MeshInstance3D
+	if mi:
+		mi.visible = false
+	var color := Color(0.8, 0.3, 0.3)
+	var metallic := true
+	match enemy_type:
+		EnemyVehicle.EnemyType.CHASER:
+			color = Color(0.9, 0.3, 0.2)
+			# Small dart.
+			_add_part("Body", BoxMesh.new(), Vector3(0.25, 0.2, 1.2), Vector3.ZERO, color, metallic)
+			_add_part("Fin", BoxMesh.new(), Vector3(0.6, 0.03, 0.3), Vector3(0, 0, 0.2), color, metallic)
+		EnemyVehicle.EnemyType.AMBUSHER:
+			color = Color(0.6, 0.2, 0.8)
+			# Angular stealth shape.
+			_add_part("Body", BoxMesh.new(), Vector3(0.5, 0.25, 1.0), Vector3.ZERO, color, metallic)
+			_add_part("WingL", BoxMesh.new(), Vector3(0.8, 0.03, 0.4), Vector3(-0.5, 0, 0.1), color, metallic)
+			_add_part("WingR", BoxMesh.new(), Vector3(0.8, 0.03, 0.4), Vector3(0.5, 0, 0.1), color, metallic)
+		EnemyVehicle.EnemyType.TANK:
+			color = Color(0.5, 0.5, 0.5)
+			# Bulky.
+			_add_part("Body", BoxMesh.new(), Vector3(0.9, 0.35, 1.2), Vector3.ZERO, color, metallic)
+			_add_part("Turret", SphereMesh.new(), Vector3(0.4, 0.4, 0.4), Vector3(0, 0.3, -0.2), Color(0.6, 0.6, 0.6), metallic)
+		EnemyVehicle.EnemyType.CHARGER:
+			color = Color(1.0, 0.6, 0.1)
+			# Long spear.
+			_add_part("Body", BoxMesh.new(), Vector3(0.15, 0.15, 1.8), Vector3.ZERO, color, metallic)
+			_add_part("Tip", CylinderMesh.new(), Vector3(0.12, 0.12, 0.4), Vector3(0, 0, -1.0), Color(1.0, 0.8, 0.2), false, true)
+		EnemyVehicle.EnemyType.RANGED:
+			color = Color(0.2, 0.7, 0.4)
+			_add_part("Body", BoxMesh.new(), Vector3(0.5, 0.25, 0.9), Vector3.ZERO, color, metallic)
+			_add_part("Barrel", CylinderMesh.new(), Vector3(0.08, 0.08, 0.8), Vector3(0, 0.1, -0.7), Color(0.3, 0.3, 0.3), metallic)
+
+func _add_part(name: String, mesh: Mesh, size: Vector3, pos: Vector3, color: Color, metallic: bool, emissive: bool = false) -> void:
+	var mi := MeshInstance3D.new()
+	mi.name = name
+	if mesh is BoxMesh:
+		(mesh as BoxMesh).size = size
+	elif mesh is CylinderMesh:
+		(mesh as CylinderMesh).top_radius = size.x
+		(mesh as CylinderMesh).bottom_radius = size.x
+		(mesh as CylinderMesh).height = size.z
+	elif mesh is SphereMesh:
+		(mesh as SphereMesh).radius = size.x
+		(mesh as SphereMesh).height = size.z
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	if metallic:
+		mat.metallic = 0.7
+		mat.roughness = 0.3
+	if emissive:
+		mat.emission_enabled = true
+		mat.emission = color
+		mat.emission_energy_multiplier = 3.0
+	mi.material_override = mat
+	mi.position = pos
+	add_child(mi)
 
 func _outward_from(props: Dictionary) -> Vector3:
 	var axis: Vector3 = props["axis"]

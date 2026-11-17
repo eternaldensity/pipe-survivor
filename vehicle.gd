@@ -65,8 +65,44 @@ func _ready() -> void:
 	_attractor_preview.position = Vector3(0.0, 0.0, -5.0)
 	add_child(_attractor_preview)
 
-	add_to_group("vehicles")
+func _build_mesh() -> void:
+	var mi := get_node_or_null("MeshInstance3D") as MeshInstance3D
+	if mi:
+		mi.visible = false  # replaced by composite
+	# Body (elongated dart).
+	_add_part("Body", BoxMesh.new(), Vector3(0.3, 0.25, 1.6), Vector3(0, 0, 0), Color(0.15, 0.35, 0.7), true)
+	# Cockpit.
+	_add_part("Cockpit", BoxMesh.new(), Vector3(0.22, 0.18, 0.5), Vector3(0, 0.15, -0.3), Color(0.3, 0.6, 1.0), false)
+	# Wings.
+	_add_part("WingL", BoxMesh.new(), Vector3(1.2, 0.04, 0.6), Vector3(-0.7, -0.05, 0.1), Color(0.1, 0.25, 0.55), true)
+	_add_part("WingR", BoxMesh.new(), Vector3(1.2, 0.04, 0.6), Vector3(0.7, -0.05, 0.1), Color(0.1, 0.25, 0.55), true)
+	# Engine glow.
+	_add_part("Engine", CylinderMesh.new(), Vector3(0.15, 0.15, 0.4), Vector3(0, 0, 0.9), Color(0.2, 0.8, 1.0), false, true)
+
+func _add_part(name: String, mesh: Mesh, size: Vector3, pos: Vector3, color: Color, metallic: bool, emissive: bool = false) -> void:
+	var mi := MeshInstance3D.new()
+	mi.name = name
+	if mesh is BoxMesh:
+		(mesh as BoxMesh).size = size
+	elif mesh is CylinderMesh:
+		(mesh as CylinderMesh).top_radius = size.x
+		(mesh as CylinderMesh).bottom_radius = size.x
+		(mesh as CylinderMesh).height = size.z
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	if metallic:
+		mat.metallic = 0.7
+		mat.roughness = 0.3
+	if emissive:
+		mat.emission_enabled = true
+		mat.emission = color
+		mat.emission_energy_multiplier = 3.0
+	mi.material_override = mat
+	mi.position = pos
+	add_child(mi)
 	_presets = PresetSigil.default_presets()
+	_build_mesh()
+	add_to_group("vehicles")
 	if not _presets.is_empty():
 		var p := _presets[0]
 		if p.params.has("sigma"): spell_sigma = p.params["sigma"]
