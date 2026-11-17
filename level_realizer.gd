@@ -74,10 +74,10 @@ func realize(macro: MacroGraph, net: PipeNetwork, owner: Node) -> void:
 		ports.append(section.exit)
 		if section is JunctionPipeSection:
 			var j := section as JunctionPipeSection
-			for m in j.exits:
+			for m in j.ports:
 				if m != null and m != j.exit:
 					ports.append(m)
-		section.exits = ports.duplicate()
+		section.ports = ports.duplicate()
 		node_sections[node.id] = section
 
 	# Annotate main-path progress.
@@ -116,8 +116,8 @@ func realize(macro: MacroGraph, net: PipeNetwork, owner: Node) -> void:
 		if not (section is JunctionPipeSection):
 			continue
 		var j := section as JunctionPipeSection
-		for i in range(j.exits.size()):
-			var marker: Marker3D = j.exits[i]
+		for i in range(j.ports.size()):
+			var marker: Marker3D = j.ports[i]
 			var radius := j.get_exit_radius(i)
 			var center := _mesh_ring_center(j, marker, radius)
 			marker.global_position = center
@@ -153,12 +153,12 @@ func realize(macro: MacroGraph, net: PipeNetwork, owner: Node) -> void:
 				continue
 			var from_port_idx: int = e.from_port
 			var to_port_idx: int = e.to_port
-			if from_port_idx < 0 or from_port_idx >= from_sec.exits.size():
-				from_port_idx = clampi(from_port_idx, 0, from_sec.exits.size() - 1)
-			if to_port_idx < 0 or to_port_idx >= to_sec.exits.size():
-				to_port_idx = clampi(to_port_idx, 0, to_sec.exits.size() - 1)
-			var from_marker: Marker3D = from_sec.exits[from_port_idx]
-			var to_marker: Marker3D = to_sec.exits[to_port_idx]
+			if from_port_idx < 0 or from_port_idx >= from_sec.ports.size():
+				from_port_idx = clampi(from_port_idx, 0, from_sec.ports.size() - 1)
+			if to_port_idx < 0 or to_port_idx >= to_sec.ports.size():
+				to_port_idx = clampi(to_port_idx, 0, to_sec.ports.size() - 1)
+			var from_marker: Marker3D = from_sec.ports[from_port_idx]
+			var to_marker: Marker3D = to_sec.ports[to_port_idx]
 			var radius := from_sec.get_exit_radius(from_port_idx)
 			var from_center := _mesh_ring_center(from_sec, from_marker, radius)
 			var to_center := _mesh_ring_center(to_sec, to_marker, radius)

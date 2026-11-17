@@ -19,7 +19,7 @@ func _ready() -> void:
 	_build_curve()
 	_build_mesh()
 	_place_markers()
-	exits = [exit]
+	ports = [exit]
 	if not Engine.is_editor_hint():
 		_build_collision()
 

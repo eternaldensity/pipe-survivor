@@ -87,16 +87,16 @@ func _update_markers() -> void:
 			right.visible = false
 
 	# Rebuild exits array for enabled paths.
-	exits.clear()
+	ports.clear()
 	if has_trunk:
-		exits.append(exit)
+		ports.append(exit)
 	if left_branch and left:
-		exits.append(left)
+		ports.append(left)
 	if right_branch and right:
-		exits.append(right)
+		ports.append(right)
 	# Fallback: if no exits enabled, keep the trunk exit.
-	if exits.is_empty() and exit:
-		exits.append(exit)
+	if ports.is_empty() and exit:
+		ports.append(exit)
 
 
 func _build_curves() -> void:

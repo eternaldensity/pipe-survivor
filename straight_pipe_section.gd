@@ -11,7 +11,7 @@ func _ready() -> void:
 	# Position markers to match actual length
 	entry.position = Vector3(0.0, 0.0, -length / 2.0)
 	exit.position  = Vector3(0.0, 0.0,  length / 2.0)
-	exits = [exit]
+	ports = [exit]
 
 	# Build the cylinder/frustum mesh explicitly. Doing this by hand (rather
 	# than using CylinderMesh) guarantees a complete surface, inward normals,

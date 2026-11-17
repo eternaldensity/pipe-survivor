@@ -160,7 +160,7 @@ func _test_seam_continuity() -> void:
 		var prev: PipeSection = ps.attached_from
 		# The attachment exit may be one of several (junction branches).
 		var exit_idx: int = ps.attached_exit
-		var exit_marker: Marker3D = prev.exits[exit_idx] if exit_idx >= 0 and exit_idx < prev.exits.size() else prev.exit
+		var exit_marker: Marker3D = prev.ports[exit_idx] if exit_idx >= 0 and exit_idx < prev.ports.size() else prev.exit
 		var prev_exit: Vector3 = exit_marker.global_position
 		var curr_entry: Vector3 = s.entry.global_position
 		# Use the actual snapped entry point as the seam sample.

@@ -19,7 +19,7 @@ func add_section(packed: PackedScene, props: Dictionary = {}, from_section: Pipe
 	else:
 		var prev: PipeSection = from_section if from_section != null else sections.back()
 		# Align new section's Entry onto the chosen exit of the previous section.
-		var exit_marker: Marker3D = prev.exits[from_exit] if from_exit < prev.exits.size() else prev.exit
+		var exit_marker: Marker3D = prev.ports[from_exit] if from_exit < prev.ports.size() else prev.exit
 		var exit_T     := exit_marker.global_transform
 		var entry_local := section.entry.transform   # local to the section
 		section.global_transform = exit_T * entry_local.affine_inverse()
@@ -42,11 +42,11 @@ func cap_open_ends() -> void:
 	for s in sections:
 		if s.attached_from == null:
 			_add_cap(s, s.entry, s.get_entry_radius(), 1.0)
-		for i in range(s.exits.size()):
+		for i in range(s.ports.size()):
 			var key := "%d:%d" % [s.get_instance_id(), i]
 			if used.has(key):
 				continue
-			_add_cap(s, s.exits[i], s.get_exit_radius(i), -1.0)
+			_add_cap(s, s.ports[i], s.get_exit_radius(i), -1.0)
 
 func _add_cap(section: PipeSection, marker: Marker3D, radius: float, facing: float) -> void:
 	if marker == null or radius <= 0.0:
@@ -140,7 +140,7 @@ func get_section_at(world_pos: Vector3) -> PipeSection:
 			continue
 		var ps := s as PipeSection
 		var d := world_pos.distance_squared_to(ps.entry.global_position)
-		for e in ps.exits:
+		for e in ps.ports:
 			d = minf(d, world_pos.distance_squared_to(e.global_position))
 		d = minf(d, world_pos.distance_squared_to(ps.exit.global_position))
 		if d < best_dist:

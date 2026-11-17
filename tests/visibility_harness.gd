@@ -274,10 +274,10 @@ func _check_seams(net) -> void:
 			continue
 		var parent: PipeSection = sec.attached_from
 		var idx: int = sec.attached_exit
-		if idx < 0 or idx >= parent.exits.size():
+		if idx < 0 or idx >= parent.ports.size():
 			_fail("seam: %s has invalid exit %d on %s" % [sec.name, idx, parent.name])
 			continue
-		var exit_marker: Marker3D = parent.exits[idx]
+		var exit_marker: Marker3D = parent.ports[idx]
 		var r_parent := parent.get_exit_radius(idx)
 		var r_child := sec.get_entry_radius()
 		_assert(absf(r_parent - r_child) < 0.5,
@@ -328,11 +328,11 @@ func _check_open_ends(net, space: PhysicsDirectSpaceState3D, vehicle: Vehicle) -
 		var sec: PipeSection = s
 		if sec.attached_from == null:
 			_cast_end_probe(space, sec, sec.entry, sec.get_entry_radius(), -1.0, vehicle)
-		for i in range(sec.exits.size()):
+		for i in range(sec.ports.size()):
 			var key := "%d:%d" % [sec.get_instance_id(), i]
 			if used.has(key):
 				continue
-			_cast_end_probe(space, sec, sec.exits[i], sec.get_exit_radius(i), 1.0, vehicle)
+			_cast_end_probe(space, sec, sec.ports[i], sec.get_exit_radius(i), 1.0, vehicle)
 
 func _cast_end_probe(space: PhysicsDirectSpaceState3D, sec: PipeSection, marker: Marker3D,
 		radius: float, outward_sign: float, vehicle: Vehicle) -> void:

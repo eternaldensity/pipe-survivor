@@ -8,7 +8,7 @@ extends Node3D
 
 # Exit markers. Single-exit sections populate this with [exit] in _ready;
 # junctions populate it with all of their exit markers.
-var exits : Array[Marker3D] = []
+var ports : Array[Marker3D] = []
 
 # Set by LevelGenerator: position along the main path (0..1), monotonic.
 var main_progress: float = 0.0

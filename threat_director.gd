@@ -274,8 +274,8 @@ func _find_spawn_position() -> Vector3:
 func _spawn_ambushes_at_junction(j: JunctionPipeSection) -> void:
 	if ambusher_scene == null:
 		return
-	for i in range(j.exits.size()):
-		var exit_marker := j.exits[i]
+	for i in range(j.ports.size()):
+		var exit_marker := j.ports[i]
 		var dist_to_exit := target.global_position.distance_to(exit_marker.global_position) if target else 0.0
 		if dist_to_exit > ambush_distance:
 			var spawn_pos := exit_marker.global_position

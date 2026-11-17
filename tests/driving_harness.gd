@@ -287,7 +287,7 @@ func _test_seams() -> void:
 			continue
 		var prev: PipeSection = psec.attached_from
 		var exit_idx: int = psec.attached_exit
-		var exit_marker: Marker3D = prev.exits[exit_idx] if exit_idx < prev.exits.size() else prev.exit
+		var exit_marker: Marker3D = prev.ports[exit_idx] if exit_idx < prev.ports.size() else prev.exit
 		var ta: Transform3D = exit_marker.global_transform
 		var tb: Transform3D = psec.entry.global_transform
 		var pos_diff: float = (ta.origin - tb.origin).length()
