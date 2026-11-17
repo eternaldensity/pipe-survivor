@@ -154,7 +154,24 @@ func _spawn_batch() -> void:
 		if _enemies.size() >= _max_alive():
 			break
 		_spawn_one(false)
+	# Faster-from-behind: if the player is being chased, spawn an extra chaser.
+	if _enemies.size() < _max_alive() and _is_player_chased():
+		_spawn_one(false)
 
+func _is_player_chased() -> bool:
+	if target == null or network == null:
+		return false
+	var player_section := network.get_section_at(target.global_position)
+	if player_section == null:
+		return false
+	for e in _enemies:
+		if not is_instance_valid(e):
+			continue
+		var enemy_section := network.get_section_at(e.global_position)
+		if enemy_section == player_section:
+			if e.global_position.distance_to(target.global_position) < 30.0:
+				return true
+	return false
 func _spawn_one(elite: bool) -> void:
 	if network == null or target == null:
 		return

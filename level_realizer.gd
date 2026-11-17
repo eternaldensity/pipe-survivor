@@ -33,13 +33,13 @@ func realize(macro: MacroGraph, net: PipeNetwork, owner: Node) -> void:
 		var props: Dictionary
 		if node.kind == MacroGraph.NodeKind.BOSS:
 			packed = load("res://BossArena.tscn")
-			props = {"entry_radius": radius + 2.0, "exit_radius": radius + 2.0, "length": 120.0}
+			props = {"entry_radius": radius + 12.0, "exit_radius": radius + 12.0, "length": 150.0}
 		elif node.kind == MacroGraph.NodeKind.ENTRY:
 			packed = load("res://StraightPipeSection.tscn")
-			props = {"entry_radius": radius, "exit_radius": radius, "length": 100.0}
+			props = {"entry_radius": radius, "exit_radius": radius, "length": 120.0}
 		elif node.kind == MacroGraph.NodeKind.REST or node.kind == MacroGraph.NodeKind.REWARD:
 			packed = load("res://RestZone.tscn")
-			props = {"entry_radius": radius + 4.0, "exit_radius": radius + 4.0, "length": 60.0}
+			props = {"entry_radius": radius + 8.0, "exit_radius": radius + 8.0, "length": 80.0}
 		elif is_junction:
 			packed = load("res://JunctionPipeSection.tscn")
 			var has_left := side_count >= 1

@@ -4,8 +4,8 @@ extends Node
 
 # ── Configuration ─────────────────────────────────────────────────────────
 @export var seed: int = 12345
-@export var min_radius: float = 6.0
-@export var max_radius: float = 20.0
+@export var min_radius: float = 10.0
+@export var max_radius: float = 24.0
 @export var debug_dump: bool = false
 
 var network: PipeNetwork = null
