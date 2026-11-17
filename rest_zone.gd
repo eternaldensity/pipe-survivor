@@ -47,7 +47,7 @@ func _on_body_entered(body: Node3D) -> void:
 				_reward_claimed = true
 				match reward_type:
 					RewardType.HEAL:
-						v.health = minf(v.max_health, v.health + 50.0)
+						v.health = minf(v.max_health, v.health + 60.0)
 					RewardType.SIGIL:
 						v.health = minf(v.max_health, v.health + 25.0)
 						v.speed *= 1.05

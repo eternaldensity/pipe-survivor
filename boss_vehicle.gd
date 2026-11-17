@@ -7,9 +7,9 @@ extends CharacterBody3D
 @export var target: Node3D = null
 
 var attractor: Attractor = Attractor.new()
-var health: float = 50.0
-var max_health: float = 50.0
-var speed: float = 8.0
+var health: float = 80.0
+var max_health: float = 80.0
+var speed: float = 6.0
 var arena_radius: float = 40.0
 
 var tube_origin := Vector3.ZERO
@@ -20,7 +20,7 @@ var _attractor_pos: Vector3 = Vector3(0.1, 0.1, 0.1)
 var _attractor_scale: float = 0.5
 
 # Attack state.
-var _attack_cooldown: float = 2.5
+var _attack_cooldown: float = 3.0
 var _attack_timer: float = 0.0
 var _attack_pattern: int = 0  # 0=single, 1=burst, 2=charge, 3=spiral, 4=area_denial
 var _phase: int = 1  # 1 = normal, 2 = enraged (health < 50%)
@@ -173,7 +173,7 @@ func _spawn_projectile(aim_pos: Vector3, aim_dir: Vector3 = Vector3.ZERO) -> voi
 	proj.network = network
 	proj._target = target
 	var dir := aim_dir if aim_dir.length_squared() > 1e-4 else (aim_pos - global_position).normalized()
-	proj.damage = 10.0
+	proj.damage = 8.0
 	var parent := get_parent()
 	if parent:
 		parent.add_child(proj)

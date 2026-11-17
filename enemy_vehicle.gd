@@ -15,6 +15,7 @@ var tube_radius := 10.0
 # Type-specific stats.
 var speed: float = 12.0
 var health: float = 3.0
+var contact_damage: float = 8.0
 var gravity: float = 25.0
 
 # Ambusher state.
@@ -37,6 +38,7 @@ func _ready() -> void:
 		EnemyType.CHASER:
 			speed = 15.0
 			health = 2.0
+			contact_damage = 8.0
 			weakness_family = "Lorenz"
 			weakness_multiplier = 1.5
 			weakness_rho_above = 30.0
@@ -45,6 +47,7 @@ func _ready() -> void:
 		EnemyType.AMBUSHER:
 			speed = 8.0
 			health = 4.0
+			contact_damage = 6.0
 			weakness_family = "Lorenz"
 			weakness_multiplier = 2.0
 			resistance = 0.5
@@ -54,6 +57,7 @@ func _ready() -> void:
 		EnemyType.TANK:
 			speed = 5.0
 			health = 8.0
+			contact_damage = 15.0
 			weakness_family = "Lorenz"
 			weakness_multiplier = 2.5
 			weakness_feature = "elongated"
@@ -61,6 +65,7 @@ func _ready() -> void:
 		EnemyType.CHARGER:
 			speed = 22.0
 			health = 3.0
+			contact_damage = 12.0
 			weakness_family = "Lorenz"
 			weakness_multiplier = 2.0
 			weakness_rho_above = 25.0
@@ -69,6 +74,7 @@ func _ready() -> void:
 		EnemyType.RANGED:
 			speed = 7.0
 			health = 5.0
+			contact_damage = 4.0
 			weakness_family = "Lorenz"
 			weakness_multiplier = 1.8
 			weakness_rho_below = 35.0
@@ -156,7 +162,7 @@ func _physics_process(delta: float) -> void:
 	var dist_to_player := global_position.distance_to(target.global_position)
 	if dist_to_player < 2.0:
 		if target.has_method("take_damage"):
-			target.take_damage(10.0 * delta)
+			target.take_damage(contact_damage * delta)
 	elif enemy_type == EnemyType.RANGED and dist_to_player < 30.0:
 		# Ranged enemies deal damage at a distance.
 		if target.has_method("take_damage"):

@@ -9,14 +9,14 @@ extends Node
 @export var target: Node3D
 
 # Tunables.
-@export var base_spawn_interval: float = 3.0
-@export var min_spawn_interval: float = 0.6
-@export var base_max_alive: int = 8
-@export var max_alive_cap: int = 50
-@export var min_spawn_distance: float = 25.0
-@export var max_spawn_distance: float = 80.0
-@export var elite_start_progress: float = 0.45
-@export var champion_start_progress: float = 0.8
+@export var base_spawn_interval: float = 4.0
+@export var min_spawn_interval: float = 0.8
+@export var base_max_alive: int = 6
+@export var max_alive_cap: int = 40
+@export var min_spawn_distance: float = 30.0
+@export var max_spawn_distance: float = 90.0
+@export var elite_start_progress: float = 0.5
+@export var champion_start_progress: float = 0.85
 @export var ambush_distance: float = 50.0
 
 var progress: float = 0.0  # furthest main-path progress reached (monotonic)
@@ -137,7 +137,7 @@ func _elite_chance() -> float:
 	if progress < elite_start_progress:
 		return 0.0
 	var t := (progress - elite_start_progress) / (1.0 - elite_start_progress)
-	return t * t * 0.25
+	return t * t * 0.2
 
 func _batch_size() -> int:
 	return 1 + int(progress * 4.0)
