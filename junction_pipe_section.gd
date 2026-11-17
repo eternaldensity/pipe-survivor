@@ -21,8 +21,6 @@ var _curve_key := Vector3(-1.0, -1.0, -1.0)  # trunk_length, branch_length, bran
 var _flags_key := Vector3i(0, 0, 0)
 
 # Static mesh cache keyed by junction parameters.
-static var _mesh_cache: Dictionary = {}
-
 func _ensure_curves() -> void:
 	var key := Vector3(trunk_length, branch_length, branch_angle)
 	var fkey := Vector3i(int(has_trunk), int(left_branch), int(right_branch))
@@ -207,34 +205,6 @@ func contains_point(world_pos: Vector3) -> bool:
 		return false
 	return true
 
-func _opening_planes() -> Array:
-	var planes: Array = []
-	# Trunk caps.
-	if has_trunk:
-		var t0 := _curves[0].sample_baked_with_rotation(0.0)
-		planes.append([t0.origin, t0.basis.z])
-		var t1 := _curves[0].sample_baked_with_rotation(_curves[0].get_baked_length())
-		planes.append([t1.origin, -t1.basis.z])
-	# Branch caps + branch-start caps.
-	var idx := 1 if has_trunk else 0
-	for i in range(2):
-		if (i == 0 and not left_branch) or (i == 1 and not right_branch):
-			continue
-		var c := _curves[idx]
-		var ts := c.sample_baked_with_rotation(0.0)
-		planes.append([ts.origin, ts.basis.z])
-		var te := c.sample_baked_with_rotation(c.get_baked_length())
-		planes.append([te.origin, -te.basis.z])
-		idx += 1
-	return planes
-
-func _cache_key() -> String:
-	# Bump the version when the mesh-building code changes so stale disk
-	# caches are not reused.
-	return "v6|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
-		tube_radius, trunk_length, branch_angle, branch_length,
-		decision_offset, blend_length, has_trunk, left_branch, right_branch]
-
 func _build_meshes() -> void:
 	# Clear previously generated collision children.
 	if mesh_instance:
@@ -250,250 +220,53 @@ func _build_meshes() -> void:
 			mesh_instance.mesh = null
 		return
 
-	# Check in-memory cache.
-	var key := _cache_key()
-	if _mesh_cache.has(key):
-		if mesh_instance:
-			mesh_instance.mesh = _mesh_cache[key]
-			mesh_instance.position = Vector3.ZERO
-			mesh_instance.basis = Basis.IDENTITY
-		return
-
-	# Check disk cache.
-	var disk_cache_path := "user://junction_mesh_v6_%s.res" % key.md5_text()
-	if ResourceLoader.exists(disk_cache_path):
-		var cached := ResourceLoader.load(disk_cache_path) as ArrayMesh
-		if cached:
-			_mesh_cache[key] = cached
-			if mesh_instance:
-				mesh_instance.mesh = cached
-				mesh_instance.position = Vector3.ZERO
-				mesh_instance.basis = Basis.IDENTITY
-			return
-
-	# Build one CSG cylinder per enabled path.
-	var combiner := CSGCombiner3D.new()
-	combiner.name = "CSGUnion"
-	combiner.visible = false
-	combiner.operation = CSGShape3D.OPERATION_UNION
-
-	var ang := deg_to_rad(branch_angle)
-	var dirs := [Vector3(-sin(ang), 0.0, cos(ang)), Vector3(sin(ang), 0.0, cos(ang))]
-
-	if has_trunk:
-		var trunk := CSGCylinder3D.new()
-		trunk.radius = tube_radius
-		trunk.height = trunk_length
-		trunk.sides = PipeSection.RING_SEGMENTS
-		trunk.rotation = Vector3(PI * 0.5, 0.0, 0.0)
-		trunk.position = Vector3(0.0, 0.0, trunk_length * 0.5)
-		combiner.add_child(trunk)
-
-	var decision := Vector3(0.0, 0.0, decision_offset if has_trunk else 0.0)
-	var extra := _branch_extra()
-	for i in range(2):
-		if (i == 0 and not left_branch) or (i == 1 and not right_branch):
-			continue
-		var d: Vector3 = dirs[i]
-		var end: Vector3 = decision + d * branch_length
-		# Align the cylinder axis exactly with the exit marker direction and
-		# put its far cap centre exactly on the marker, so the child section's
-		# entry ring lands on the junction mouth without a gap or tilt.
-		var height: float = branch_length + extra
-		var b := CSGCylinder3D.new()
-		b.radius = tube_radius
-		b.height = height
-		b.sides = PipeSection.RING_SEGMENTS
-		var y := d
-		var x := Vector3.UP.cross(y)
-		if x.length() < 1e-4:
-			x = Vector3.RIGHT.cross(y)
-		x = x.normalized()
-		var z := x.cross(y).normalized()
-		b.basis = Basis(x, y, z)
-		b.position = end - d * (height * 0.5)
-		combiner.add_child(b)
-
-	add_child(combiner)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var union: ArrayMesh = null
-	for m in combiner.get_meshes():
-		if m is ArrayMesh:
-			union = m
-			break
-	remove_child(combiner)
-	combiner.free()
-	if union == null:
+	var mesh := await JunctionMeshBuilder.build(
+		tube_radius, trunk_length, branch_angle, branch_length,
+		decision_offset, blend_length, has_trunk, left_branch, right_branch)
+	if mesh == null:
 		push_error("Junction CSG union produced no mesh")
 		if mesh_instance:
 			mesh_instance.mesh = null
 		return
-	var stripped := _strip_caps_and_color(union)
-	_mesh_cache[key] = stripped
-	# Save to disk cache for future sessions.
-	var disk_save_path := "user://junction_mesh_v6_%s.res" % key.md5_text()
-	ResourceSaver.save(stripped, disk_save_path)
 	if mesh_instance:
-		mesh_instance.mesh = stripped
+		mesh_instance.mesh = mesh
 		mesh_instance.position = Vector3.ZERO
 		mesh_instance.basis = Basis.IDENTITY
 		# Wall-colour shader: per-fragment nearest-branch colouring.
 		var shader := load("res://junction_color.gdshader") as Shader
-		var mat := ShaderMaterial.new()
-		mat.shader = shader
-		mat.set_shader_parameter("tube_radius", tube_radius)
-		# Branch starts and directions (local space). Disabled branches are
-		# pushed far away so they never win the nearest test.
-		var ang2 := deg_to_rad(branch_angle)
-		var decision2 := Vector3(0.0, 0.0, decision_offset)
-		var far := Vector3(0.0, 0.0, 10000.0)
-		var starts := []
-		var dirs2 := []
-		if has_trunk:
-			starts.append(Vector3.ZERO)
-			dirs2.append(Vector3(0.0, 0.0, 1.0))
-		else:
-			starts.append(far)
-			dirs2.append(Vector3(0.0, 0.0, 1.0))
-		if left_branch:
-			starts.append(decision2)
-			dirs2.append(Vector3(-sin(ang2), 0.0, cos(ang2)))
-		else:
-			starts.append(far)
-			dirs2.append(Vector3(-sin(ang2), 0.0, cos(ang2)))
-		if right_branch:
-			starts.append(decision2)
-			dirs2.append(Vector3(sin(ang2), 0.0, cos(ang2)))
-		else:
-			starts.append(far)
-			dirs2.append(Vector3(sin(ang2), 0.0, cos(ang2)))
-		mat.set_shader_parameter("branch_start", starts)
-		mat.set_shader_parameter("branch_dir", dirs2)
-		var colors := [Color(0.7, 0.7, 0.75), Color(0.3, 0.6, 1.0), Color(1.0, 0.5, 0.3)]
-		mat.set_shader_parameter("branch_color", colors)
-		mat.set_shader_parameter("blend", 2.0)
-		mesh_instance.material_override = mat
+		if shader:
+			var mat := ShaderMaterial.new()
+			mat.shader = shader
+			mat.set_shader_parameter("tube_radius", tube_radius)
+			var ang2 := deg_to_rad(branch_angle)
+			var decision2 := Vector3(0.0, 0.0, decision_offset)
+			var far := Vector3(0.0, 0.0, 10000.0)
+			var starts := []
+			var dirs2 := []
+			if has_trunk:
+				starts.append(Vector3.ZERO)
+				dirs2.append(Vector3(0.0, 0.0, 1.0))
+			else:
+				starts.append(far)
+				dirs2.append(Vector3(0.0, 0.0, 1.0))
+			if left_branch:
+				starts.append(decision2)
+				dirs2.append(Vector3(-sin(ang2), 0.0, cos(ang2)))
+			else:
+				starts.append(far)
+				dirs2.append(Vector3(-sin(ang2), 0.0, cos(ang2)))
+			if right_branch:
+				starts.append(decision2)
+				dirs2.append(Vector3(sin(ang2), 0.0, cos(ang2)))
+			else:
+				starts.append(far)
+				dirs2.append(Vector3(sin(ang2), 0.0, cos(ang2)))
+			var colors := [Color(0.7, 0.7, 0.75), Color(0.3, 0.6, 1.0), Color(1.0, 0.5, 0.3)]
+			mat.set_shader_parameter("branch_start", starts)
+			mat.set_shader_parameter("branch_dir", dirs2)
+			mat.set_shader_parameter("branch_color", colors)
+			mat.set_shader_parameter("blend", 2.0)
+			mesh_instance.material_override = mat
 
 func _build_collisions() -> void:
-	if mesh_instance == null or mesh_instance.mesh == null:
-		return
-	if mesh_instance.get_child_count() == 0:
-		mesh_instance.create_trimesh_collision()
-	await get_tree().process_frame
-	if mesh_instance.get_child_count() == 0:
-		return
-	var body := mesh_instance.get_child(0) as StaticBody3D
-	if body == null or body.get_child_count() == 0:
-		return
-	var shape := body.get_child(0) as CollisionShape3D
-	if shape and shape.shape is ConcavePolygonShape3D:
-		(shape.shape as ConcavePolygonShape3D).backface_collision = true
-
-func _strip_caps_and_color(src: ArrayMesh) -> ArrayMesh:
-	var planes := _opening_planes()
-	var colors := [Color(0.7, 0.7, 0.75), Color(0.3, 0.6, 1.0), Color(1.0, 0.5, 0.3)]
-	var out_verts := PackedVector3Array()
-	var out_norms := PackedVector3Array()
-	var out_uvs := PackedVector2Array()
-	var out_cols := PackedColorArray()
-	var out_idx := PackedInt32Array()
-
-	for surf in range(src.get_surface_count()):
-		var arr := src.surface_get_arrays(surf)
-		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-		var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL] if arr[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
-		var uvs: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV] if arr[Mesh.ARRAY_TEX_UV] != null else PackedVector2Array()
-		var raw_idx = arr[Mesh.ARRAY_INDEX]
-		var idx: PackedInt32Array = raw_idx if raw_idx != null else PackedInt32Array()
-		if idx.is_empty():
-			idx.resize(verts.size())
-			for i in range(verts.size()): idx[i] = i
-
-		for t in range(idx.size() / 3):
-			var i0 := idx[t * 3]
-			var i1 := idx[t * 3 + 1]
-			var i2 := idx[t * 3 + 2]
-			var p0 := verts[i0]
-			var p1 := verts[i1]
-			var p2 := verts[i2]
-			var face_n := (p1 - p0).cross(p2 - p0)
-			if face_n.length_squared() < 1e-12:
-				continue
-			face_n = face_n.normalized()
-			var centroid := (p0 + p1 + p2) / 3.0
-
-			var is_cap := false
-			for pl in planes:
-				var pp: Vector3 = pl[0]
-				var pn: Vector3 = pl[1]
-				if absf((p0 - pp).dot(pn)) < 1.0 \
-					and absf((p1 - pp).dot(pn)) < 1.0 \
-					and absf((p2 - pp).dot(pn)) < 1.0 \
-					and absf(face_n.dot(pn)) > 0.7:
-					is_cap = true
-					break
-			if is_cap:
-				continue
-
-			var best_c := 0
-			var best_d := INF
-			var best_cp := centroid
-			for i in range(_curves.size()):
-				var off: float = _curves[i].get_closest_offset(centroid)
-				var cp: Vector3 = _curves[i].sample_baked(off)
-				var d := centroid.distance_to(cp)
-				if d < best_d:
-					best_d = d
-					best_c = i
-					best_cp = cp
-
-			# Godot uses clockwise winding for front faces, i.e. the geometric
-			# normal points to the back side. The visible front must therefore
-			# face the interior: orient each triangle so its cross product
-			# points *away* from the tube axis. CSG output is mostly correct
-			# for the outside, so seam triangles need flipping here.
-			var inward := -face_n
-			var radial := centroid - best_cp
-			if radial.length_squared() > 1e-8:
-				inward = -radial.normalized()
-			var flip_winding := face_n.dot(inward) > 0.0
-			var order := [i0, i2, i1] if flip_winding else [i0, i1, i2]
-			for k in order:
-				out_idx.append(out_verts.size())
-				out_verts.append(verts[k])
-				var n: Vector3 = norms[k] if k < norms.size() else face_n
-				var out_n := -n
-				# Keep the smooth CSG normal, but never let it point the wrong
-				# way for a triangle we just oriented.
-				if out_n.length_squared() < 1e-12 or out_n.dot(inward) < 0.2:
-					out_n = inward
-				out_norms.append(out_n.normalized())
-				out_uvs.append(uvs[k] if k < uvs.size() else Vector2.ZERO)
-				out_cols.append(colors[best_c] if best_c < colors.size() else Color.WHITE)
-
-	# Final consistency pass: CSG seam triangles can end up with a winding that
-	# disagrees with their emitted (inward) normals, which makes them vanish
-	# from inside under back-face culling. Flip any such triangle so its front
-	# face (the side opposite the geometric normal) faces the interior.
-	for t in range(out_idx.size() / 3):
-		var a := out_idx[t * 3]
-		var b := out_idx[t * 3 + 1]
-		var c := out_idx[t * 3 + 2]
-		var fn := (out_verts[b] - out_verts[a]).cross(out_verts[c] - out_verts[a])
-		if fn.length_squared() < 1e-12:
-			continue
-		var an := out_norms[a] + out_norms[b] + out_norms[c]
-		if an.length_squared() < 1e-12 or fn.dot(an) > 0.0:
-			out_idx[t * 3 + 1] = c
-			out_idx[t * 3 + 2] = b
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = out_verts
-	arrays[Mesh.ARRAY_NORMAL] = out_norms
-	arrays[Mesh.ARRAY_TEX_UV] = out_uvs
-	arrays[Mesh.ARRAY_COLOR] = out_cols
-	arrays[Mesh.ARRAY_INDEX] = out_idx
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
+	await build_trimesh_collision_async(mesh_instance)
