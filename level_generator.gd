@@ -32,6 +32,9 @@ func generate(net: PipeNetwork) -> void:
 	_node_count = 0
 	rng.seed = seed
 
+	# Clean up stale junction mesh caches from older code versions.
+	_cleanup_junction_caches()
+
 	if generation_version >= 2:
 		await _generate_v2()
 		return
@@ -719,6 +722,18 @@ func _place_content_v2(node_sections: Array, macro: MacroGraph) -> void:
 			var vehicle = get_node_or_null("Vehicle")
 			if vehicle:
 				crafting_ui.bind_vehicle(vehicle)
+func _cleanup_junction_caches() -> void:
+	var dir := DirAccess.open("user://")
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var name := dir.get_next()
+	while name != "":
+		if not dir.current_is_dir() and name.begins_with("junction_mesh_") and name.ends_with(".res") and not name.begins_with("junction_mesh_v6_"):
+			dir.remove(name)
+		name = dir.get_next()
+	dir.list_dir_end()
+
 func _scene_for_type(type: SectionType) -> PackedScene:
 	match type:
 		SectionType.STRAIGHT:

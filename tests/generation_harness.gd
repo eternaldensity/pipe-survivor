@@ -74,4 +74,5 @@ func _run_all() -> void:
 	print("generation: 100 seeds, worst time %.1f ms (seed %d), loops %d-%d, side paths %d-%d"
 		% [worst_time, worst_seed,
 			2, 4, 3, 6])
+	_assert(worst_time < 1000.0, "generation too slow: %.1f ms (seed %d)" % [worst_time, worst_seed])
 	print("determinism: OK")

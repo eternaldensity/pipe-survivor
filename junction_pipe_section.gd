@@ -260,7 +260,7 @@ func _build_meshes() -> void:
 		return
 
 	# Check disk cache.
-	var disk_cache_path := "user://junction_mesh_%s.res" % key.md5_text()
+	var disk_cache_path := "user://junction_mesh_v6_%s.res" % key.md5_text()
 	if ResourceLoader.exists(disk_cache_path):
 		var cached := ResourceLoader.load(disk_cache_path) as ArrayMesh
 		if cached:
@@ -332,7 +332,7 @@ func _build_meshes() -> void:
 	var stripped := _strip_caps_and_color(union)
 	_mesh_cache[key] = stripped
 	# Save to disk cache for future sessions.
-	var disk_save_path := "user://junction_mesh_%s.res" % key.md5_text()
+	var disk_save_path := "user://junction_mesh_v6_%s.res" % key.md5_text()
 	ResourceSaver.save(stripped, disk_save_path)
 	if mesh_instance:
 		mesh_instance.mesh = stripped
