@@ -174,11 +174,58 @@ func _test_branch() -> void:
 	var main = load("res://main.tscn").instantiate()
 	root.add_child(main)
 	for i in range(60): await process_frame
-	# v2 uses connectors for loops/sides; the v1 branch-traversal case is
-	# covered by the visibility harness. Skip here.
+	var net = main.get_node("PipeNetwork")
+	var connector: ConnectorPipeSection = null
+	for s in net.sections:
+		if s is ConnectorPipeSection:
+			connector = s
+			break
+	if connector == null:
+		print("branch: no connector in network (skipping)")
+		main.queue_free()
+		await process_frame
+		return
+	var v = main.get_node("Vehicle")
+	var axis := connector.entry.global_transform.basis.z
+	v.global_position = connector.entry.global_position + axis * 2.0
+	v.global_transform.basis = Basis.looking_at(axis, Vector3.UP)
+	net.current_section = null
+	net.get_section_at(v.global_position)
+	Input.action_press("ui_up")
+	var nan_count := 0
+	var max_radius_error := 0.0
+	var entered := false
+	for i in range(1500):
+		await process_frame
+		_auto_steer(v)
+		var sec = net.get_section_at(v.global_position)
+		if sec == null:
+			_fail("branch: null section at frame %d" % i)
+			break
+		if not sec.contains_point(v.global_position):
+			continue
+		if sec == connector or sec.attached_from == connector:
+			entered = true
+		if i < 5:
+			continue
+		var p: Dictionary = sec.get_tube_properties(v.global_position)
+		var r: float = (v.global_position - p["origin"]).length()
+		var err := absf(r - float(p["radius"]))
+		if err > max_radius_error:
+			max_radius_error = err
+		for c in [v.global_position.x, v.global_position.y, v.global_position.z,
+				  v.velocity.x, v.velocity.y, v.velocity.z]:
+			if is_nan(c) or is_inf(c):
+				nan_count += 1
+	Input.action_release("ui_up")
+	Input.action_release("ui_left")
+	Input.action_release("ui_right")
+	_assert(nan_count == 0, "branch: NaN/INF detected (%d)" % nan_count)
+	_assert(entered, "branch: vehicle did not traverse the connector")
+	_assert(max_radius_error < 20.0, "branch: vehicle left tube wall (max radius error %.2f)" % max_radius_error)
+	print("branch: entered=%s max_radius_err=%.3f nan=%d" % [entered, max_radius_error, nan_count])
 	main.queue_free()
 	await process_frame
-	return
 
 
 func _test_properties() -> void:
