@@ -204,6 +204,37 @@ func realize(macro: MacroGraph, net: PipeNetwork, owner: Node) -> void:
 	# Seal the start and every dead end / unused mouth.
 	network.cap_open_ends()
 
+	# Per-section interior lighting.
+	_add_interior_lights(network)
+
+func _add_interior_lights(net: PipeNetwork) -> void:
+	for s in net.sections:
+		var sec: PipeSection = s
+		var light := OmniLight3D.new()
+		light.name = "InteriorLight"
+		var r := maxf(sec.get_entry_radius(), sec.get_exit_radius())
+		light.omni_range = maxf(r * 2.5, 8.0)
+		light.light_energy = 0.8
+		light.shadow_enabled = false
+		if sec is RestZone:
+			light.light_color = Color(0.6, 1.0, 0.7)
+			light.light_energy = 1.2
+		elif sec is BossArena:
+			light.light_color = Color(1.0, 0.4, 0.3)
+			light.light_energy = 1.0
+		elif sec is JunctionPipeSection:
+			light.light_color = Color(1.0, 0.85, 0.5)
+			light.light_energy = 0.9
+		elif sec is ConnectorPipeSection:
+			light.light_color = Color(0.7, 0.75, 0.9)
+			light.light_energy = 0.7
+		else:
+			light.light_color = Color(0.85, 0.9, 1.0)
+			light.light_energy = 0.8
+		var mid := (sec.entry.global_position + sec.exit.global_position) * 0.5
+		light.global_position = mid
+		net.add_child(light)
+
 func _mesh_ring_center(section: PipeSection, marker: Marker3D, radius: float) -> Vector3:
 	var mi: MeshInstance3D = section.mesh_instance
 	if mi == null or mi.mesh == null:
