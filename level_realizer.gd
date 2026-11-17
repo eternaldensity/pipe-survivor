@@ -39,7 +39,10 @@ func realize(macro: MacroGraph, net: PipeNetwork, owner: Node) -> void:
 			props = {"entry_radius": radius, "exit_radius": radius, "length": 120.0}
 		elif node.kind == MacroGraph.NodeKind.REST or node.kind == MacroGraph.NodeKind.REWARD:
 			packed = load("res://RestZone.tscn")
-			props = {"entry_radius": radius + 8.0, "exit_radius": radius + 8.0, "length": 80.0}
+			var rt := 1  # UPGRADE default
+			if node.kind == MacroGraph.NodeKind.REWARD:
+				rt = 0 if (node.id % 2 == 0) else 2  # HEAL or SIGIL
+			props = {"entry_radius": radius + 8.0, "exit_radius": radius + 8.0, "length": 80.0, "reward_type": rt}
 		elif is_junction:
 			packed = load("res://JunctionPipeSection.tscn")
 			var has_left := side_count >= 1

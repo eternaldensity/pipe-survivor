@@ -2,7 +2,7 @@
 class_name EnemyVehicle
 extends CharacterBody3D
 
-enum EnemyType { CHASER, AMBUSHER, TANK }
+enum EnemyType { CHASER, AMBUSHER, TANK, CHARGER, RANGED }
 
 @export var enemy_type: EnemyType = EnemyType.CHASER
 @export var network: PipeNetwork
@@ -58,6 +58,22 @@ func _ready() -> void:
 			weakness_multiplier = 2.5
 			weakness_feature = "elongated"
 			weakness_feature_threshold = 1.2
+		EnemyType.CHARGER:
+			speed = 22.0
+			health = 3.0
+			weakness_family = "Lorenz"
+			weakness_multiplier = 2.0
+			weakness_rho_above = 25.0
+			weakness_feature = "high_lobe"
+			weakness_feature_threshold = 2.0
+		EnemyType.RANGED:
+			speed = 7.0
+			health = 5.0
+			weakness_family = "Lorenz"
+			weakness_multiplier = 1.8
+			weakness_rho_below = 35.0
+			weakness_feature = "high_symmetry"
+			weakness_feature_threshold = 0.6
 
 	# Weakness indicator label.
 	var label := Label3D.new()
@@ -110,16 +126,23 @@ func _physics_process(delta: float) -> void:
 		else:
 			effective_speed = 0.0
 
+	# Ranged enemies hold position when close enough.
+	if enemy_type == EnemyType.RANGED:
+		var dist_to_player := global_position.distance_to(target.global_position)
+		if dist_to_player < 25.0:
+			effective_speed = 0.0
+
 	# Chase the player: move toward target along the tube.
 	var to_target := target.global_position - global_position
 	var along_axis := to_target.dot(tube_axis)
 	var dir := tube_axis if along_axis > 0.0 else -tube_axis
 	var desired := dir * effective_speed
-	# Add circumferential steering toward target.
-	var to_target_perp := to_target - to_target.dot(tube_axis) * tube_axis
-	if to_target_perp.length_squared() > 1e-4:
-		var circ_dir := to_target_perp.normalized()
-		desired += circ_dir * effective_speed * 0.3
+	# Circumferential steering toward target (chargers skip for a direct charge).
+	if enemy_type != EnemyType.CHARGER:
+		var to_target_perp := to_target - to_target.dot(tube_axis) * tube_axis
+		if to_target_perp.length_squared() > 1e-4:
+			var circ_dir := to_target_perp.normalized()
+			desired += circ_dir * effective_speed * 0.3
 
 	var radial_vel := velocity.dot(outward) * outward
 	var surface_vel := velocity - radial_vel
@@ -130,9 +153,14 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	# Contact damage to the player.
-	if target and global_position.distance_to(target.global_position) < 2.0:
+	var dist_to_player := global_position.distance_to(target.global_position)
+	if dist_to_player < 2.0:
 		if target.has_method("take_damage"):
 			target.take_damage(10.0 * delta)
+	elif enemy_type == EnemyType.RANGED and dist_to_player < 30.0:
+		# Ranged enemies deal damage at a distance.
+		if target.has_method("take_damage"):
+			target.take_damage(4.0 * delta)
 
 func _outward_from(props: Dictionary) -> Vector3:
 	var axis: Vector3 = props["axis"]

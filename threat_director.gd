@@ -203,12 +203,18 @@ func _spawn_one(elite: bool) -> void:
 			scene = chaser_scene
 			etype = EnemyVehicle.EnemyType.CHASER
 	else:
-		if roll < 0.25 and tank_scene:
+		if roll < 0.15 and tank_scene:
 			scene = tank_scene
 			etype = EnemyVehicle.EnemyType.TANK
-		elif roll < 0.5 and ambusher_scene:
+		elif roll < 0.3 and ambusher_scene:
 			scene = ambusher_scene
 			etype = EnemyVehicle.EnemyType.AMBUSHER
+		elif roll < 0.45:
+			scene = chaser_scene
+			etype = EnemyVehicle.EnemyType.CHARGER
+		elif roll < 0.6:
+			scene = tank_scene if tank_scene else chaser_scene
+			etype = EnemyVehicle.EnemyType.RANGED
 		else:
 			scene = chaser_scene
 			etype = EnemyVehicle.EnemyType.CHASER
