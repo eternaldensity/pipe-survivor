@@ -149,3 +149,5 @@ func get_section_at(world_pos: Vector3) -> PipeSection:
 	if best == null:
 		current_section = best
 		return best
+	current_section = best
+	return best
