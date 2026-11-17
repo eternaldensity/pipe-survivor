@@ -33,6 +33,8 @@ var _spell_zone_scene: PackedScene = null
 var _audio_manager: AudioManager = null
 var _audio_searched: bool = false
 # Live spell parameters (updated by crafting UI).
+var _prev_speed := 0.0
+var _sudden_stop_cooldown := 0.0
 var spell_sigma: float = 10.0
 var spell_rho: float = 28.0
 var spell_beta: float = 8.0 / 3.0
@@ -269,6 +271,35 @@ func _physics_process(delta: float) -> void:
 	_flatten_to_surface(inward, delta)
 
 	move_and_slide()
+
+	# ── Sudden-stop detector (debug) ─────────────────────────────────────
+	# If the player is accelerating forward but the speed drops sharply, the
+	# vehicle likely hit unseen geometry. Log position + tube info for diagnosis.
+	_sudden_stop_cooldown = maxf(0.0, _sudden_stop_cooldown - delta)
+	var cur_speed := velocity.length()
+	var throttle_input := Input.get_axis("ui_down", "ui_up")
+	if throttle_input > 0.3 and _prev_speed > 5.0 and cur_speed < _prev_speed - 4.0 \
+			and _sudden_stop_cooldown <= 0.0:
+		_sudden_stop_cooldown = 1.0
+		var sec := network.get_section_at(global_position) if network else null
+		var to := Vector3.ZERO
+		var ax := Vector3.ZERO
+		var rad := 0.0
+		var origin := global_position
+		if sec:
+			var stop_props := sec.get_tube_properties(global_position)
+			ax = stop_props["axis"]
+			origin = stop_props["origin"]
+			rad = stop_props["radius"]
+		print("SUDDEN STOP at ", global_position,
+			" speed ", _prev_speed, " -> ", cur_speed,
+			" throttle=", throttle_input,
+			" section=", (sec.name if sec else "none"),
+			" tube_origin=", origin,
+			" tube_axis=", ax,
+			" tube_radius=", rad,
+			" radial_dist=", (global_position - origin).length())
+	_prev_speed = cur_speed
 
 	# Clamp to pipe wall to prevent high-speed tunneling through thin walls.
 	# This supplements move_and_slide's collision, which can miss fast-moving

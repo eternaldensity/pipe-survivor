@@ -40,7 +40,7 @@ func _ready() -> void:
 
 func _on_body_entered(body: Node3D) -> void:
 	if body is Vehicle:
-		var v := body as Vehicle
+		var v: Vehicle = body as Vehicle
 		if v:
 			v.rest_zone_inside = true
 			if not _reward_claimed:
@@ -56,7 +56,7 @@ func _on_body_entered(body: Node3D) -> void:
 
 func _on_body_exited(body: Node3D) -> void:
 	if body is Vehicle:
-		var v := body as Vehicle
+		var v: Vehicle = body as Vehicle
 		if v:
 			v.rest_zone_inside = false
 
