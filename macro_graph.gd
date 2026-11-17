@@ -261,16 +261,23 @@ func validate(config: Dictionary) -> Dictionary:
 
 # ── generation ─────────────────────────────────────────────────────────────
 
-static func generate(config: Dictionary, rng: RandomNumberGenerator) -> MacroGraph:
+static func generate(config: Variant, rng: RandomNumberGenerator) -> MacroGraph:
+	var cfg: Dictionary
+	if config is LevelConfig:
+		cfg = (config as LevelConfig).to_dict()
+	elif config is Dictionary:
+		cfg = config
+	else:
+		cfg = {}
 	var g := MacroGraph.new()
-	var main_anchors := int(config.get("main_anchors", 12))
-	var anchor_spacing_min := float(config.get("anchor_spacing_min", 60.0))
-	var anchor_spacing_max := float(config.get("anchor_spacing_max", 130.0))
-	var clearance_radius := float(config.get("clearance_radius", 40.0))
-	var max_loops := int(config.get("max_loops", 4))
-	var min_loops := int(config.get("min_loops", 2))
-	var side_paths := int(config.get("side_paths", 4))
-	var max_loop_span := int(config.get("max_loop_span", 8))
+	var main_anchors := int(cfg.get("main_anchors", 12))
+	var anchor_spacing_min := float(cfg.get("anchor_spacing_min", 60.0))
+	var anchor_spacing_max := float(cfg.get("anchor_spacing_max", 130.0))
+	var clearance_radius := float(cfg.get("clearance_radius", 40.0))
+	var max_loops := int(cfg.get("max_loops", 4))
+	var min_loops := int(cfg.get("min_loops", 2))
+	var side_paths := int(cfg.get("side_paths", 4))
+	var max_loop_span := int(cfg.get("max_loop_span", 8))
 
 	# 1. Meandering main route.
 	var anchors: Array[Vector3] = []
@@ -329,7 +336,7 @@ static func generate(config: Dictionary, rng: RandomNumberGenerator) -> MacroGra
 		if dir.length_squared() < 1e-4:
 			dir = Vector3.FORWARD
 		dir = dir.normalized()
-		var radius := _zone_radius(a.zone, config)
+		var radius := _zone_radius(a.zone, cfg)
 		# out port on a
 		var out_port := g.add_port(a.id, a.position + dir * 4.0, dir, Vector3.UP, radius)
 		# in port on b
@@ -371,7 +378,7 @@ static func generate(config: Dictionary, rng: RandomNumberGenerator) -> MacroGra
 			node_i.kind = NodeKind.JUNCTION
 		if node_j.kind == NodeKind.CHAMBER:
 			node_j.kind = NodeKind.JUNCTION
-		var radius := _zone_radius(node_i.zone, config)
+		var radius := _zone_radius(node_i.zone, cfg)
 		var dir_i := Vector3.RIGHT.rotated(Vector3.UP, rng.randf_range(0.0, TAU))
 		var dir_j := -dir_i
 		var p_i := g.add_port(node_i.id, node_i.position + dir_i * 4.0, dir_i, Vector3.UP, radius)
@@ -415,7 +422,7 @@ static func generate(config: Dictionary, rng: RandomNumberGenerator) -> MacroGra
 			rng.randf_range(-30.0, 30.0), rng.randf_range(-10.0, 10.0), rng.randf_range(20.0, 50.0))
 		var reward_id := g.add_node(NodeKind.REWARD, reward_pos, -1)
 		g.nodes[reward_id].zone = anchor.zone
-		var radius := _zone_radius(anchor.zone, config)
+		var radius := _zone_radius(anchor.zone, cfg)
 		var dir := (reward_pos - anchor.position).normalized()
 		if dir.length_squared() < 1e-4:
 			dir = Vector3.FORWARD
