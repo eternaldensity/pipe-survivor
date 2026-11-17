@@ -42,21 +42,14 @@ var spell_beta: float = 8.0 / 3.0
 func _ready() -> void:
 	_camera = get_node_or_null("Camera3D")
 	safe_margin = 0.05
-	# Speed HUD (CanvasLayer so it stays on screen).
-	var hud := CanvasLayer.new()
-	hud.name = "SpeedHUD"
-	add_child(hud)
-	var panel := PanelContainer.new()
-	panel.anchor_left = 0.0
-	panel.anchor_top = 0.0
-	panel.offset_left = 10.0
-	panel.offset_top = 10.0
-	panel.offset_right = 200.0
-	panel.offset_bottom = 60.0
-	hud.add_child(panel)
-	_speed_label = Label.new()
-	_speed_label.text = "Speed: 0.0"
-	panel.add_child(_speed_label)
+	# Speed HUD (extracted to SpeedHUD.tscn).
+	var hud_scene := load("res://SpeedHUD.tscn")
+	if hud_scene:
+		var hud := hud_scene.instantiate() as SpeedHUD
+		if hud:
+			hud.vehicle = self
+			add_child(hud)
+	_speed_label = null  # no longer used; SpeedHUD handles display
 
 	_rest_label = Label3D.new()
 	_rest_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -81,9 +74,6 @@ func _ready() -> void:
 		if p.params.has("beta"): spell_beta = p.params["beta"]
 
 func _process(delta: float) -> void:
-	if _speed_label:
-		var spd := velocity.length()
-		_speed_label.text = "Speed: %.1f%s" % [spd, "  [REST]" if rest_zone_inside else ""]
 	# Engine sound.
 	var audio := _find_audio_manager()
 	if audio:

@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://speedhud001"]
+
+[ext_resource type="Script" path="res://speed_hud.gd" id="1_sh"]
+
+[node name="SpeedHUD" type="CanvasLayer" script=ExtResource("1_sh")]
+
+[node name="Panel" type="PanelContainer" parent="."]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 210.0
+offset_bottom = 60.0
+
+[node name="Label" type="Label" parent="Panel"]
+text = "Speed: 0.0"
